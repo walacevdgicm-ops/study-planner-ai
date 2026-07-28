@@ -18,6 +18,7 @@ const CalendarPage = lazy(() => import('@/pages/CalendarPage'));
 const Assignments = lazy(() => import('@/pages/Assignments'));
 const Exams = lazy(() => import('@/pages/Exams'));
 const Library = lazy(() => import('@/pages/Library'));
+const StudyMaterial = lazy(() => import('@/pages/StudyMaterial'));
 const Reviews = lazy(() => import('@/pages/Reviews'));
 const Goals = lazy(() => import('@/pages/Goals'));
 const Stats = lazy(() => import('@/pages/Stats'));
@@ -61,6 +62,7 @@ export default function App() {
               <Route path="/trabalhos" element={<Assignments />} />
               <Route path="/provas" element={<Exams />} />
               <Route path="/materiais" element={<Library kind="pdf" />} />
+              <Route path="/materiais/:id/estudar" element={<StudyMaterial />} />
               <Route path="/videos" element={<Library kind="video" />} />
               <Route path="/leituras" element={<Library kind="reading" />} />
               <Route path="/revisao" element={<Reviews />} />

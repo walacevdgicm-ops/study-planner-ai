@@ -9,6 +9,10 @@
 [build.environment]
   NODE_VERSION = "22"
 
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
 # Redundante com apps/web/public/_redirects, mantido para quem
 # ler só este arquivo ao ajustar o deploy.
 [[redirects]]

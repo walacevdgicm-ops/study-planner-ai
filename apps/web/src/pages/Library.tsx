@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { BookMarked, Check, FileText, Plus, Sparkles, Star, Video } from 'lucide-react';
-import type { Material, MaterialKind } from '@spa/shared-types';
+import { useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { BookMarked, Check, FileText, Paperclip, Plus, Sparkles, Star, Upload, Video } from 'lucide-react';
+import type { Material, MaterialFile, MaterialKind } from '@spa/shared-types';
 import {
   Badge,
   Button,
@@ -23,10 +24,11 @@ import { useAppStore } from '@/store/useAppStore';
 import { useActiveSubjects, useSubjectMap } from '@/store/selectors';
 import { useSimulatedLoad } from '@/lib/hooks';
 import { fmtDay } from '@/lib/date';
+import { readVideoDurationMinutes, uploadMaterialFile, UploadError, type UploadedFile } from '@/lib/api/materials';
 
 const COPY: Record<
   MaterialKind,
-  { title: string; highlight: string; description: string; unit: string; empty: string; icon: typeof FileText }
+  { title: string; highlight: string; description: string; unit: string; empty: string; icon: typeof FileText; accept: string }
 > = {
   pdf: {
     title: 'PDFs e materiais',
@@ -36,6 +38,7 @@ const COPY: Record<
     unit: 'páginas',
     empty: 'Suba os slides e apostilas de cada disciplina para organizar o que precisa ser lido.',
     icon: FileText,
+    accept: 'application/pdf',
   },
   video: {
     title: 'Vídeo-aulas',
@@ -44,6 +47,7 @@ const COPY: Record<
     unit: 'minutos',
     empty: 'Cadastre as aulas gravadas da disciplina para acompanhar quanto já assistiu.',
     icon: Video,
+    accept: 'video/*',
   },
   reading: {
     title: 'Leituras',
@@ -52,6 +56,7 @@ const COPY: Record<
     unit: 'páginas',
     empty: 'Adicione os livros e artigos da bibliografia para controlar o ritmo de leitura.',
     icon: BookMarked,
+    accept: 'application/pdf,.epub,.txt,.doc,.docx',
   },
 };
 
@@ -168,6 +173,11 @@ export default function Library({ kind }: { kind: MaterialKind }) {
                         {t}
                       </Badge>
                     ))}
+                    {m.file && (
+                      <Badge tone="neutral">
+                        <Paperclip size={10} /> arquivo anexado
+                      </Badge>
+                    )}
                   </div>
 
                   <div className="mt-3">
@@ -181,6 +191,13 @@ export default function Library({ kind }: { kind: MaterialKind }) {
                   </div>
 
                   <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-hair pt-3">
+                    {m.file && (
+                      <Link to={`/materiais/${m.id}/estudar`}>
+                        <Button variant="marker" size="sm">
+                          Abrir e estudar
+                        </Button>
+                      </Link>
+                    )}
                     <Button variant="secondary" size="sm" onClick={() => setAiTarget(m)}>
                       <Sparkles size={14} /> Resumo · flashcards · quiz
                     </Button>
@@ -214,6 +231,7 @@ export default function Library({ kind }: { kind: MaterialKind }) {
         open={creating}
         kind={kind}
         unit={copy.unit}
+        accept={copy.accept}
         onClose={() => setCreating(false)}
         subjects={subjects.map((s) => ({ id: s.id, name: s.name }))}
         onSave={(data) => {
@@ -226,10 +244,22 @@ export default function Library({ kind }: { kind: MaterialKind }) {
   );
 }
 
+/* ------------------------------------------------------------------ */
+
+interface NewMaterialData {
+  subjectId: string;
+  title: string;
+  tags: string[];
+  size: number;
+  position: number;
+  file: MaterialFile | null;
+}
+
 function NewMaterialModal({
   open,
   kind,
   unit,
+  accept,
   onClose,
   onSave,
   subjects,
@@ -237,14 +267,75 @@ function NewMaterialModal({
   open: boolean;
   kind: MaterialKind;
   unit: string;
+  accept: string;
   onClose: () => void;
-  onSave: (data: { subjectId: string; title: string; tags: string[]; size: number; position: number }) => void;
+  onSave: (data: NewMaterialData) => void;
   subjects: { id: string; name: string }[];
 }) {
   const [title, setTitle] = useState('');
   const [subjectId, setSubjectId] = useState(subjects[0]?.id ?? '');
   const [tags, setTags] = useState('');
   const [size, setSize] = useState(30);
+  const [uploaded, setUploaded] = useState<UploadedFile | null>(null);
+  const [fileName, setFileName] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const reset = () => {
+    setTitle('');
+    setTags('');
+    setUploaded(null);
+    setFileName('');
+    setError('');
+    setSize(30);
+  };
+
+  const handleFile = async (file: File) => {
+    setError('');
+    setUploading(true);
+    setFileName(file.name);
+    try {
+      const [result] = await Promise.all([
+        uploadMaterialFile(file),
+        kind === 'video' ? readVideoDurationMinutes(file) : Promise.resolve(null),
+      ]);
+      setUploaded(result);
+      if (!title.trim()) setTitle(file.name.replace(/\.[^.]+$/, ''));
+      if (result.numPages) setSize(result.numPages);
+      else if (kind === 'video') setSize(await readVideoDurationMinutes(file));
+    } catch (e) {
+      setUploaded(null);
+      setError(e instanceof UploadError ? e.message : 'Não consegui enviar esse arquivo. Tente de novo.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const submit = () => {
+    if (!title.trim()) {
+      setError('Dê um título para o material.');
+      return;
+    }
+    onSave({
+      subjectId,
+      title: title.trim(),
+      tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
+      size,
+      position: 0,
+      file: uploaded
+        ? {
+            id: uploaded.id,
+            mimeType: uploaded.mimeType,
+            name: uploaded.name,
+            sizeBytes: uploaded.sizeBytes,
+            hasText: uploaded.hasText,
+            uploadedAt: new Date().toISOString(),
+          }
+        : null,
+    });
+    reset();
+  };
 
   return (
     <Modal
@@ -252,32 +343,59 @@ function NewMaterialModal({
       onClose={onClose}
       size="sm"
       title={kind === 'video' ? 'Nova vídeo-aula' : kind === 'reading' ? 'Nova leitura' : 'Novo material'}
-      description="Nesta etapa o arquivo é apenas referenciado — o upload real entra com o back-end."
+      description="Anexe o arquivo de verdade para poder estudá-lo dentro da plataforma."
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
             Cancelar
           </Button>
-          <Button
-            onClick={() => {
-              if (!title.trim()) return;
-              onSave({
-                subjectId,
-                title: title.trim(),
-                tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
-                size,
-                position: 0,
-              });
-              setTitle('');
-              setTags('');
-            }}
-          >
+          <Button onClick={submit} disabled={uploading}>
             Adicionar
           </Button>
         </>
       }
     >
       <div className="space-y-3">
+        <Field label="Arquivo" hint={`Até 4,5MB por enquanto. Formatos: ${accept.replace(/application\/|video\//g, '')}`}>
+          <input
+            ref={inputRef}
+            type="file"
+            accept={accept}
+            className="sr-only"
+            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+          />
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={uploading}
+            className={cn(
+              'flex w-full items-center gap-2.5 rounded-lg border border-dashed px-3 py-2.5 text-left text-[13px] transition-colors',
+              uploaded ? 'border-quadro/50 bg-quadro/8 text-ink' : 'border-hair text-ink-2 hover:bg-surface-2',
+            )}
+          >
+            {uploading ? (
+              <>
+                <span className="size-4 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                Enviando "{fileName}"…
+              </>
+            ) : uploaded ? (
+              <>
+                <Check size={16} className="shrink-0 text-quadro" />
+                <span className="min-w-0 flex-1 truncate">{uploaded.name}</span>
+                <span className="shrink-0 font-mono text-[11px] text-ink-3">
+                  {(uploaded.sizeBytes / 1024).toFixed(0)}KB
+                </span>
+              </>
+            ) : (
+              <>
+                <Upload size={16} className="shrink-0" />
+                Escolher arquivo…
+              </>
+            )}
+          </button>
+          {error && <p className="mt-1.5 text-[12px] font-medium text-caneta">{error}</p>}
+        </Field>
+
         <Field label="Título" htmlFor="mat-title">
           <Input id="mat-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex: Slides da aula 8" />
         </Field>
@@ -291,7 +409,7 @@ function NewMaterialModal({
           </Select>
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label={`Total de ${unit}`} htmlFor="mat-size">
+          <Field label={`Total de ${unit}`} hint={uploaded?.numPages ? 'Preenchido pelo PDF' : undefined} htmlFor="mat-size">
             <Input id="mat-size" type="number" min={1} value={size} onChange={(e) => setSize(Number(e.target.value))} />
           </Field>
           <Field label="Tags" hint="Separadas por vírgula" htmlFor="mat-tags">

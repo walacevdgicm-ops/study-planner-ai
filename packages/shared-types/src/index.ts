@@ -161,6 +161,21 @@ export interface Exam {
 
 export type MaterialKind = 'pdf' | 'video' | 'reading';
 
+/**
+ * Arquivo real associado a um material, armazenado via função serverless
+ * (Netlify Function + Netlify Blobs). Sem isso, Material é só metadado.
+ */
+export interface MaterialFile {
+  /** Chave do blob — usada para montar a URL de streaming/leitura. */
+  id: ID;
+  mimeType: string;
+  name: string;
+  sizeBytes: number;
+  /** Texto extraído (hoje só para PDF) — base para o assistente de IA real na v2. */
+  hasText: boolean;
+  uploadedAt: ISODateTime;
+}
+
 export interface Material {
   id: ID;
   subjectId: ID;
@@ -179,6 +194,8 @@ export interface Material {
   addedAt: ISODateTime;
   /** Preenchido quando o aluno marca como estudado — dispara as revisões. */
   studiedAt?: ISODateTime | null;
+  /** Arquivo enviado de verdade (PDF/vídeo/outro). Ausente nos materiais só-metadado. */
+  file?: MaterialFile | null;
   /** Saída do assistente de IA (stub na Etapa 2). */
   aiSummary?: AiSummary | null;
   aiFlashcards?: Flashcard[];

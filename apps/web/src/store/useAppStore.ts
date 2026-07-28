@@ -70,7 +70,7 @@ interface Actions {
   queueFlashcards: (materialId: ID) => number;
 
   /* sessões */
-  addSession: (s: Omit<StudySession, 'id'>) => void;
+  addSession: (s: Omit<StudySession, 'id'>) => ID;
   moveSession: (id: ID, date: ISODate, start: MinuteOfDay) => void;
   completeSession: (id: ID, actualMinutes?: number) => void;
   updateSession: (id: ID, patch: Partial<StudySession>) => void;
@@ -270,7 +270,11 @@ export const useAppStore = create<AppState>()(
       },
 
       /* ---------------- sessões ---------------- */
-      addSession: (s) => set((st) => ({ sessions: [...st.sessions, { ...s, id: uid('ses') }] })),
+      addSession: (s) => {
+        const id = uid('ses');
+        set((st) => ({ sessions: [...st.sessions, { ...s, id }] }));
+        return id;
+      },
 
       moveSession: (id, date, start) =>
         set((s) => ({

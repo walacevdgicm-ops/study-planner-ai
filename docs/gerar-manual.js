@@ -38,7 +38,7 @@ const CHAPTERS = [
     steps: [
       'Abra o app pelo endereço que você publicou (ou por http://localhost:5173 se estiver rodando no seu computador).',
       'Ele abre já com um semestre de demonstração: 6 disciplinas, provas, trabalhos e materiais. Serve para você mexer em tudo sem medo.',
-      'Quando quiser começar do zero com as suas matérias, vá em Configurações, desça até "Seus dados" e clique em Redefinir.',
+      'Quando quiser trocar pelas suas matérias de verdade, vá em Configurações, desça até "Seus dados" e clique em "Começar do zero com meus dados" — isso apaga o exemplo e te leva direto para o cadastro inicial.',
       'Tudo o que você faz fica salvo automaticamente no seu navegador. Não existe botão "salvar" — não tem como esquecer.',
     ],
     tips: [
@@ -94,11 +94,14 @@ const CHAPTERS = [
       'Para criar: botão "Nova disciplina". Preencha nome, código, professor, carga horária, peso (1 = tranquila, 5 = crítica) e escolha a cor.',
       'O peso diz ao sistema o quanto essa matéria puxa a sua atenção — use 5 para aquela que você tem medo de reprovar.',
       'Clique na estrela para marcar como favorita e no nome da disciplina para abrir os detalhes.',
+      'Ícone de lápis: edita a disciplina — nome, código, professor, carga horária, peso, média atual e cor. Use para corrigir algo cadastrado errado, sem precisar apagar e criar de novo.',
+      'Ícone de arquivo (a caixinha ao lado do lápis): arquiva a disciplina. Ela some das suas listas e do cronograma, mas os trabalhos, provas e materiais que já estavam ligados a ela continuam guardados no histórico.',
       'Dentro da disciplina, as abas mostram Visão geral (por que ela está nessa prioridade), Materiais, Trabalhos, Provas e o histórico de Sessões.',
       'Use o filtro "Por prioridade" para ver a lista na ordem em que o sistema recomenda estudar.',
     ],
     tips: [
       'A barra "Carga cumprida" compara as horas que você já estudou com a carga total da matéria. É o jeito mais rápido de ver qual disciplina está abandonada.',
+      'Arquivar pede confirmação e não tem um botão de "desarquivar" ainda. Se for só um erro de digitação, prefira editar em vez de arquivar e recriar.',
     ],
   },
   {
@@ -268,10 +271,12 @@ const CHAPTERS = [
       'Aparência: tema claro, escuro ou igual ao do seu sistema.',
       'Seus dados — Exportar: baixa um arquivo .json com tudo. Faça isso de vez em quando, é o seu backup.',
       'Seus dados — Importar: recupera esse arquivo em outro computador ou depois de limpar o navegador.',
-      'Seus dados — Redefinir: apaga tudo e volta ao semestre de demonstração. Não tem como desfazer.',
+      'Seus dados — "Redefinir para o exemplo": apaga suas alterações e volta ao semestre de demonstração (Cálculo II e companhia). Bom para testar o app do zero.',
+      'Seus dados — "Começar do zero com meus dados": apaga TUDO (inclusive as disciplinas de demonstração) e te leva direto para o cadastro inicial, para você montar o seu semestre de verdade.',
     ],
     tips: [
       'Exporte seus dados no fim de cada mês. Como tudo fica salvo no navegador, limpar o cache sem backup significa perder o semestre.',
+      'Tanto "Redefinir para o exemplo" quanto "Começar do zero" são irreversíveis. Se tiver dúvida, exporte antes de clicar em qualquer um dos dois.',
     ],
   },
   {
@@ -297,7 +302,8 @@ const CHAPTERS = [
       'Apaguei sem querer. Se você tiver um arquivo exportado, use Importar. Sem backup, não há como recuperar.',
       'O plano não gerou nenhum bloco. Verifique em Configurações se há dias marcados na disponibilidade semanal e se o teto de horas é maior que zero.',
       'A IA está inventando o resumo? Nesta versão ela é uma simulação, sim — e a tela avisa isso. A geração real a partir do seu PDF entra na próxima versão.',
-      'Posso apagar uma disciplina? Ainda não pela tela; nesta versão só é possível criar e favoritar. Está na lista de melhorias prioritárias.',
+      'Posso apagar uma disciplina? Dá para arquivar (ícone de caixinha no card da disciplina) — ela some das listas e do cronograma, mas o histórico de trabalhos e provas ligados a ela fica guardado. Ainda não existe exclusão definitiva.',
+      'Como troco os dados de demonstração pelos meus? Configurações → Seus dados → "Começar do zero com meus dados". Isso apaga o exemplo e abre o cadastro inicial para você.',
     ],
     tips: [],
   },
@@ -448,7 +454,7 @@ function build(tocPages) {
     .font('Helvetica')
     .fontSize(9.5)
     .fillColor(C.ink3)
-    .text('Versão 1.0 · Etapa 2 (front-end) · dados salvos no seu navegador', M.left, PAGE_H - 104, {
+    .text('Versão 1.1 · Etapa 2 (front-end) · dados salvos no seu navegador', M.left, PAGE_H - 104, {
       width: CW,
     });
 
@@ -495,6 +501,26 @@ function build(tocPages) {
       M.left + 14,
       doc.y + 28,
       { width: CW - 28, lineGap: 2 },
+    );
+
+  doc.y += 74;
+  doc.roundedRect(M.left, doc.y, CW, 74, 10).fillAndStroke('#FFFFFF', C.quadro);
+  doc.rect(M.left, doc.y + 12, 5, 50).fill(C.quadro);
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(10)
+    .fillColor(C.grafite)
+    .text('Novidades desta atualização', M.left + 18, doc.y + 12);
+  doc
+    .font('Helvetica')
+    .fontSize(9.5)
+    .fillColor(C.ink2)
+    .text(
+      '• Agora dá para editar e arquivar disciplinas (capítulo 5).\n' +
+        '• Novo botão "Começar do zero com meus dados", em Configurações, para trocar o semestre de demonstração pelas suas matérias reais (capítulos 1 e 17).',
+      M.left + 18,
+      doc.y + 28,
+      { width: CW - 32, lineGap: 3 },
     );
 
   /* ---------- capítulos ---------- */

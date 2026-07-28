@@ -6,3 +6,6 @@ npm-debug.log*
 
 # artefatos de build/temp que não precisam ir pro repositório
 .vite/
+
+# Local Netlify folder
+.netlify
