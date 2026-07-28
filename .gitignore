@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.DS_Store
+*.local
+npm-debug.log*
+
+# artefatos de build/temp que não precisam ir pro repositório
+.vite/

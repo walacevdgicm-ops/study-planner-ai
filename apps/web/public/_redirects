@@ -1,0 +1,3 @@
+# SPA: qualquer rota do React Router é servida pelo index.html
+# (sem isso, abrir /semana ou /revisao direto na URL retorna 404 na Netlify)
+/*    /index.html   200

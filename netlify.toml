@@ -1,0 +1,29 @@
+# Configuração para deploy contínuo na Netlify (repositório conectado).
+# Para deploy manual por arrastar-e-soltar, este arquivo é ignorado —
+# nesse caso o que importa é a pasta apps/web/dist.
+
+[build]
+  command = "npm run build"
+  publish = "apps/web/dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Redundante com apps/web/public/_redirects, mantido para quem
+# ler só este arquivo ao ajustar o deploy.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    cache-control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "DENY"

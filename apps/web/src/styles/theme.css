@@ -1,0 +1,243 @@
+@import 'tailwindcss';
+
+/* O ui-kit vive fora da raiz do app: Tailwind precisa varrer essa pasta. */
+@source '../../../../packages/ui-kit/src';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ------------------------------------------------------------------ *
+ *  PALETA — "Marca-texto & Fichário"
+ *  6 cores nomeadas de núcleo + escala de disciplinas (tons de marcador)
+ * ------------------------------------------------------------------ */
+@theme {
+  --color-papel: #f5f7fa; /* papel sob luz fria — nunca creme */
+  --color-grafite: #141a2a; /* tinta/lápis */
+  --color-tinta: #3b3bd9; /* caneta esferográfica azul — ação primária */
+  --color-marca: #ffe24d; /* marca-texto — energia, streak, XP */
+  --color-caneta: #e5484d; /* caneta vermelha — atraso, conflito, erro */
+  --color-quadro: #12b886; /* verde-quadro — concluído, meta batida */
+
+  /* variações de apoio derivadas do núcleo */
+  --color-tinta-fraca: #eceafb;
+  --color-caneta-fraca: #fdecec;
+  --color-quadro-fraca: #e6f7f1;
+  --color-marca-fraca: #fff8db;
+
+  /* escala de disciplinas (6 tons de marcador) */
+  --color-disc-amarelo: #ffe24d;
+  --color-disc-limao: #9bf06b;
+  --color-disc-rosa: #ff7bc5;
+  --color-disc-ciano: #5ce1ff;
+  --color-disc-lilas: #b79bff;
+  --color-disc-laranja: #ffa24d;
+
+  --font-display: 'Bricolage Grotesque', 'Public Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Public Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  --radius-card: 0.875rem;
+  --radius-tab: 0.375rem;
+
+  --shadow-paper: 0 1px 1px rgb(20 26 42 / 0.04), 0 4px 14px -6px rgb(20 26 42 / 0.14);
+  --shadow-lifted: 0 8px 30px -10px rgb(20 26 42 / 0.28);
+}
+
+/* Tokens semânticos: trocam com o tema, mas geram utilitários estáveis
+   (bg-surface, text-ink, border-hair...). */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-hair: var(--hair);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+}
+
+:root {
+  --bg: #f5f7fa;
+  --surface: #ffffff;
+  --surface-2: #eef1f7;
+  --hair: #dfe4ee;
+  --ink: #141a2a;
+  --ink-2: #4a5468;
+  --ink-3: #7b869c;
+  --accent: #3b3bd9;
+  --accent-soft: #eceafb;
+
+  --hl-blend: multiply;
+  --hl-alpha: 1;
+  --subject: #ffe24d;
+
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #10151f;
+  --surface: #182031;
+  --surface-2: #1f2839;
+  --hair: #2c3648;
+  --ink: #eef2f9;
+  --ink-2: #a7b1c4;
+  --ink-3: #7b869c;
+  --accent: #8f8cff;
+  --accent-soft: #232a45;
+
+  /* multiply some no escuro: o marcador vira luz. */
+  --hl-blend: screen;
+  --hl-alpha: 0.32;
+
+  color-scheme: dark;
+}
+
+@layer base {
+  * {
+    border-color: var(--hair);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-synthesis-weight: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
+
+  /* Foco visível e consistente — requisito de acessibilidade. */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: var(--color-marca);
+    color: #141a2a;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* ---------- ASSINATURA 1: passada de marca-texto ---------- */
+  .hl {
+    position: relative;
+    display: inline-block;
+    isolation: isolate;
+  }
+  .hl > * {
+    position: relative;
+    z-index: 1;
+  }
+  .hl::before {
+    content: '';
+    position: absolute;
+    inset: 0.14em -0.34em 0.02em -0.3em;
+    background: var(--subject);
+    mix-blend-mode: var(--hl-blend);
+    opacity: var(--hl-alpha);
+    z-index: 0;
+    transform: rotate(-0.7deg);
+    /* extremidades irregulares: traço de marcador, não retângulo */
+    clip-path: polygon(
+      1.5% 12%,
+      99% 0%,
+      100% 74%,
+      97% 100%,
+      42% 92%,
+      3% 100%,
+      0% 46%
+    );
+  }
+  .hl-sm::before {
+    inset: 0.28em -0.2em 0.1em -0.18em;
+  }
+
+  /* ---------- ASSINATURA 2: aba de fichário ---------- */
+  .tab-card {
+    position: relative;
+    overflow: hidden;
+  }
+  .tab-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.75rem;
+    bottom: 0.75rem;
+    width: 6px;
+    border-radius: 0 var(--radius-tab) var(--radius-tab) 0;
+    background: var(--subject);
+  }
+  .tab-full::before {
+    top: 0;
+    bottom: 0;
+    border-radius: 0;
+  }
+
+  /* ---------- ASSINATURA 3: wash (bloco de estudo) ---------- */
+  .wash {
+    background: color-mix(in srgb, var(--subject) 16%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--subject) 42%, var(--hair));
+  }
+  .dark .wash {
+    background: color-mix(in srgb, var(--subject) 13%, var(--surface));
+    border-color: color-mix(in srgb, var(--subject) 26%, var(--hair));
+  }
+
+  /* ---------- ASSINATURA 4: pauta de caderno ---------- */
+  .ruled {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0 var(--rule, 40px),
+      color-mix(in srgb, var(--ink) 7%, transparent) var(--rule, 40px),
+      color-mix(in srgb, var(--ink) 7%, transparent) calc(var(--rule, 40px) + 1px)
+    );
+  }
+
+  /* furos de fichário — usado nas superfícies de planejamento */
+  .holes::before {
+    content: '';
+    position: absolute;
+    left: 0.6rem;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    background-image: radial-gradient(
+      circle at 5px 5px,
+      color-mix(in srgb, var(--ink) 14%, transparent) 4.5px,
+      transparent 5px
+    );
+    background-size: 10px 64px;
+    pointer-events: none;
+  }
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

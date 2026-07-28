@@ -1,0 +1,16 @@
+{
+  "name": "study-planner-ai",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Plataforma de organização acadêmica para estudantes universitários",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @spa/web",
+    "build": "npm run build -w @spa/web",
+    "preview": "npm run preview -w @spa/web",
+    "typecheck": "npm run typecheck -w @spa/web"
+  }
+}
