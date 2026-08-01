@@ -63,7 +63,8 @@
   --hair: #dfe4ee;
   --ink: #141a2a;
   --ink-2: #4a5468;
-  --ink-3: #7b869c;
+  /* AA (4.5:1+) sobre --papel a 11-12px — #7b869c media 3,7:1, ilegível em telas ruins/luz forte. */
+  --ink-3: #5c6880;
   --accent: #3b3bd9;
   --accent-soft: #eceafb;
 
@@ -81,7 +82,7 @@
   --hair: #2c3648;
   --ink: #eef2f9;
   --ink-2: #a7b1c4;
-  --ink-3: #7b869c;
+  --ink-3: #98a3b8;
   --accent: #8f8cff;
   --accent-soft: #232a45;
 
@@ -232,6 +233,47 @@
     );
     background-size: 10px 64px;
     pointer-events: none;
+  }
+
+  /* ---------- marca-texto sobre PDF: mesma linguagem da assinatura 1,
+     mas como retângulo de verdade (o aluno desenha, não é decorativo) ---------- */
+  .pdf-mark {
+    background: var(--subject);
+    mix-blend-mode: var(--hl-blend);
+    opacity: var(--hl-alpha);
+  }
+  .pdf-mark-draft {
+    opacity: calc(var(--hl-alpha) * 0.85);
+    outline: 1.5px dashed color-mix(in srgb, var(--subject) 70%, transparent);
+    outline-offset: 1px;
+  }
+
+  /* ---------- modo leitura: passar de página como um livro ---------- */
+  @keyframes pdf-turn-next {
+    from {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  @keyframes pdf-turn-prev {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  .pdf-turn-next {
+    animation: pdf-turn-next 0.22s ease-out;
+  }
+  .pdf-turn-prev {
+    animation: pdf-turn-prev 0.22s ease-out;
   }
 }
 

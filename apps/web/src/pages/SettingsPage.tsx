@@ -53,11 +53,13 @@ export default function SettingsPage() {
   const upload = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
-      const ok = importData(String(reader.result));
+      const result = importData(String(reader.result));
       push({
-        title: ok ? 'Dados importados' : 'Arquivo inválido',
-        description: ok ? 'Seu semestre foi restaurado.' : 'Verifique se é um backup gerado por esta ferramenta.',
-        tone: ok ? 'success' : 'danger',
+        title: result.ok ? 'Dados importados' : 'Arquivo inválido',
+        description: result.ok
+          ? 'Seu semestre foi restaurado.'
+          : (result.errors[0] ?? 'Verifique se é um backup gerado por esta ferramenta.'),
+        tone: result.ok ? 'success' : 'danger',
       });
     };
     reader.readAsText(file);

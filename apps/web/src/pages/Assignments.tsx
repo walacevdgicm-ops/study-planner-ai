@@ -11,7 +11,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { GripVertical, Paperclip, Plus, Star } from 'lucide-react';
+import { GripVertical, Paperclip, Pencil, Plus, Star, Trash2 } from 'lucide-react';
 import type { Assignment, AssignmentStatus } from '@spa/shared-types';
 import {
   Badge,
@@ -139,12 +139,15 @@ export default function Assignments() {
   const assignments = useAppStore((s) => s.assignments);
   const moveAssignment = useAppStore((s) => s.moveAssignment);
   const addAssignment = useAppStore((s) => s.addAssignment);
+  const updateAssignment = useAppStore((s) => s.updateAssignment);
+  const deleteAssignment = useAppStore((s) => s.deleteAssignment);
   const subjects = useActiveSubjects();
   const { push } = useToast();
 
   const [dragging, setDragging] = useState<Assignment | null>(null);
   const [detail, setDetail] = useState<Assignment | null>(null);
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<Assignment | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -225,23 +228,53 @@ export default function Assignments() {
         description={current ? `Entrega ${fmtDay(current.dueDate)} · ${relativeDays(current.dueDate)}` : undefined}
         footer={
           current && (
-            <>
-              <Button variant="ghost" onClick={() => setDetail(null)}>
-                Fechar
-              </Button>
-              {current.status !== 'done' && (
+            <div className="flex w-full items-center justify-between gap-2">
+              <div className="flex items-center gap-1">
                 <Button
-                  variant="marker"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Editar ${current.title}`}
                   onClick={() => {
-                    moveAssignment(current.id, 'done');
-                    push({ title: '+60 XP', description: 'Trabalho entregue.', tone: 'xp' });
+                    setEditing(current);
                     setDetail(null);
                   }}
                 >
-                  Marcar como entregue
+                  <Pencil size={15} />
                 </Button>
-              )}
-            </>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Excluir ${current.title}`}
+                  onClick={() => {
+                    if (confirm(`Excluir "${current.title}"? Isso não pode ser desfeito.`)) {
+                      deleteAssignment(current.id);
+                      setDetail(null);
+                      push({ title: 'Trabalho excluído', description: current.title });
+                    }
+                  }}
+                  className="hover:text-caneta"
+                >
+                  <Trash2 size={15} />
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" onClick={() => setDetail(null)}>
+                  Fechar
+                </Button>
+                {current.status !== 'done' && (
+                  <Button
+                    variant="marker"
+                    onClick={() => {
+                      moveAssignment(current.id, 'done');
+                      push({ title: '+60 XP', description: 'Trabalho entregue.', tone: 'xp' });
+                      setDetail(null);
+                    }}
+                  >
+                    Marcar como entregue
+                  </Button>
+                )}
+              </div>
+            </div>
           )
         }
       >
@@ -259,6 +292,21 @@ export default function Assignments() {
           push({ title: 'Trabalho cadastrado', description: data.title, tone: 'success' });
         }}
       />
+
+      {/* Editar trabalho */}
+      {editing && (
+        <NewAssignmentModal
+          open={!!editing}
+          onClose={() => setEditing(null)}
+          subjects={subjects.map((s) => ({ id: s.id, name: s.name }))}
+          initial={editing}
+          onSave={(data) => {
+            updateAssignment(editing.id, data);
+            setEditing(null);
+            push({ title: 'Trabalho atualizado', description: data.title, tone: 'success' });
+          }}
+        />
+      )}
     </>
   );
 }
@@ -335,6 +383,7 @@ function NewAssignmentModal({
   onClose,
   onSave,
   subjects,
+  initial,
 }: {
   open: boolean;
   onClose: () => void;
@@ -346,18 +395,21 @@ function NewAssignmentModal({
     estimatedHours: number;
   }) => void;
   subjects: { id: string; name: string }[];
+  /** Presente = modo edição. */
+  initial?: Assignment;
 }) {
-  const [title, setTitle] = useState('');
-  const [subjectId, setSubjectId] = useState(subjects[0]?.id ?? '');
-  const [dueDate, setDueDate] = useState(todayISO());
-  const [hours, setHours] = useState(3);
+  const isEdit = !!initial;
+  const [title, setTitle] = useState(initial?.title ?? '');
+  const [subjectId, setSubjectId] = useState(initial?.subjectId ?? subjects[0]?.id ?? '');
+  const [dueDate, setDueDate] = useState(initial?.dueDate ?? todayISO());
+  const [hours, setHours] = useState(initial?.estimatedHours ?? 3);
   const [error, setError] = useState('');
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="Novo trabalho"
+      title={isEdit ? `Editar ${initial?.title}` : 'Novo trabalho'}
       size="sm"
       footer={
         <>
@@ -367,12 +419,18 @@ function NewAssignmentModal({
           <Button
             onClick={() => {
               if (title.trim().length < 3) return setError('Descreva o trabalho em pelo menos 3 letras.');
-              onSave({ subjectId, title: title.trim(), dueDate, status: 'todo', estimatedHours: hours });
-              setTitle('');
+              onSave({
+                subjectId,
+                title: title.trim(),
+                dueDate,
+                status: initial?.status ?? 'todo',
+                estimatedHours: hours,
+              });
+              if (!isEdit) setTitle('');
               setError('');
             }}
           >
-            Cadastrar
+            {isEdit ? 'Salvar' : 'Cadastrar'}
           </Button>
         </>
       }

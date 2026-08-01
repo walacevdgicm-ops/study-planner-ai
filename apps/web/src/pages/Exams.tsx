@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -31,11 +31,14 @@ export default function Exams() {
   const exams = useAppStore((s) => s.exams);
   const sessions = useAppStore((s) => s.sessions);
   const addExam = useAppStore((s) => s.addExam);
+  const updateExam = useAppStore((s) => s.updateExam);
+  const deleteExam = useAppStore((s) => s.deleteExam);
   const prefs = useAppStore((s) => s.user.preferences);
   const subjects = useActiveSubjects();
   const subjectMap = useSubjectMap();
   const { push } = useToast();
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<Exam | null>(null);
 
   const today = todayISO();
   const upcoming = exams.filter((e) => e.date >= today).sort((a, b) => a.date.localeCompare(b.date));
@@ -98,9 +101,33 @@ export default function Exams() {
             const ladder = previewLadder(today, prefs.reviewIntervals).filter((d) => d <= exam.date);
 
             return (
-              <Card key={exam.id} tabColor={subject?.hex} tabFull>
+              <Card key={exam.id} tabColor={subject?.hex} tabFull className="relative">
                 <CardBody className="p-4 pl-5">
-                  <div className="flex items-start gap-4">
+                  <div className="absolute top-3 right-3 flex items-center gap-0.5">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Editar ${exam.title}`}
+                      onClick={() => setEditing(exam)}
+                    >
+                      <Pencil size={14} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Excluir ${exam.title}`}
+                      className="hover:text-caneta"
+                      onClick={() => {
+                        if (confirm(`Excluir "${exam.title}"? As revisões geradas para ela também somem.`)) {
+                          deleteExam(exam.id);
+                          push({ title: 'Prova excluída', description: exam.title });
+                        }
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
+                  <div className="flex items-start gap-4 pr-16">
                     <Ring
                       value={Math.max(0, 100 - (days / 30) * 100)}
                       size={72}
@@ -186,6 +213,20 @@ export default function Exams() {
           push({ title: 'Prova cadastrada', description: `${data.title} · ${fmtDay(data.date)}`, tone: 'success' });
         }}
       />
+
+      {editing && (
+        <NewExamModal
+          open={!!editing}
+          onClose={() => setEditing(null)}
+          subjects={subjects.map((s) => ({ id: s.id, name: s.name }))}
+          initial={editing}
+          onSave={(data) => {
+            updateExam(editing.id, data);
+            setEditing(null);
+            push({ title: 'Prova atualizada', description: data.title, tone: 'success' });
+          }}
+        />
+      )}
     </>
   );
 }
@@ -195,23 +236,27 @@ function NewExamModal({
   onClose,
   onSave,
   subjects,
+  initial,
 }: {
   open: boolean;
   onClose: () => void;
   onSave: (e: Omit<Exam, 'id'>) => void;
   subjects: { id: string; name: string }[];
+  /** Presente = modo edição. */
+  initial?: Exam;
 }) {
-  const [title, setTitle] = useState('');
-  const [subjectId, setSubjectId] = useState(subjects[0]?.id ?? '');
-  const [date, setDate] = useState(todayISO());
-  const [topics, setTopics] = useState('');
-  const [targetHours, setTargetHours] = useState(10);
+  const isEdit = !!initial;
+  const [title, setTitle] = useState(initial?.title ?? '');
+  const [subjectId, setSubjectId] = useState(initial?.subjectId ?? subjects[0]?.id ?? '');
+  const [date, setDate] = useState(initial?.date ?? todayISO());
+  const [topics, setTopics] = useState(initial?.topics.join(', ') ?? '');
+  const [targetHours, setTargetHours] = useState(initial?.targetHours ?? 10);
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="Nova prova"
+      title={isEdit ? `Editar ${initial?.title}` : 'Nova prova'}
       size="sm"
       footer={
         <>
@@ -229,11 +274,14 @@ function NewExamModal({
                   .map((t) => t.trim())
                   .filter(Boolean),
                 targetHours,
-                grade: null,
+                startTime: initial?.startTime,
+                room: initial?.room,
+                weightInGrade: initial?.weightInGrade,
+                grade: initial?.grade ?? null,
               })
             }
           >
-            Cadastrar
+            {isEdit ? 'Salvar' : 'Cadastrar'}
           </Button>
         </>
       }

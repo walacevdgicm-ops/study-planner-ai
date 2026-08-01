@@ -63,6 +63,12 @@ export function fmtMinutes(m: MinuteOfDay): string {
   return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
 }
 
+/** Inverso de `fmtMinutes` — para ler um `<input type="time">` (valor "HH:MM"). */
+export function parseTimeInput(hhmm: string): MinuteOfDay {
+  const [h, m] = hhmm.split(':').map(Number);
+  return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
+}
+
 /** 135 -> "2h15" | 60 -> "1h" | 45 -> "45min" */
 export function fmtDuration(minutes: number): string {
   const h = Math.floor(minutes / 60);

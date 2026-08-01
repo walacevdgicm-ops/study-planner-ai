@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Target, Trophy } from 'lucide-react';
+import { Pencil, Plus, Target, Trophy } from 'lucide-react';
 import type { Goal, GoalMetric, GoalPeriod } from '@spa/shared-types';
 import {
   Badge,
@@ -29,11 +29,13 @@ export default function Goals() {
   const assignments = useAppStore((s) => s.assignments);
   const materials = useAppStore((s) => s.materials);
   const addGoal = useAppStore((s) => s.addGoal);
+  const updateGoal = useAppStore((s) => s.updateGoal);
   const archiveGoal = useAppStore((s) => s.archiveGoal);
   const subjects = useActiveSubjects();
   const { level, xp, progress, toNext, streak } = useGamificationSummary();
   const { push } = useToast();
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<Goal | null>(null);
 
   const active = goals.filter((g) => !g.archived);
   const data = { sessions, reviews, assignments, materials };
@@ -122,15 +124,24 @@ export default function Goals() {
                     <p className="text-[12px] text-ink-2">
                       Ritmo esperado hoje: <span className="font-mono">{p.expectedPct}%</span>
                     </p>
-                    <button
-                      onClick={() => {
-                        archiveGoal(goal.id);
-                        push({ title: 'Meta arquivada', description: goal.title });
-                      }}
-                      className="text-[12px] text-ink-3 underline underline-offset-2 hover:text-ink"
-                    >
-                      arquivar
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setEditing(goal)}
+                        aria-label={`Editar ${goal.title}`}
+                        className="flex items-center gap-1 text-[12px] text-ink-3 underline underline-offset-2 hover:text-ink"
+                      >
+                        <Pencil size={11} /> editar
+                      </button>
+                      <button
+                        onClick={() => {
+                          archiveGoal(goal.id);
+                          push({ title: 'Meta arquivada', description: goal.title });
+                        }}
+                        className="text-[12px] text-ink-3 underline underline-offset-2 hover:text-ink"
+                      >
+                        arquivar
+                      </button>
+                    </div>
                   </div>
                 </CardBody>
               </Card>
@@ -149,6 +160,20 @@ export default function Goals() {
           push({ title: 'Meta criada', description: g.title, tone: 'success' });
         }}
       />
+
+      {editing && (
+        <NewGoalModal
+          open={!!editing}
+          onClose={() => setEditing(null)}
+          subjects={subjects.map((s) => ({ id: s.id, name: s.name }))}
+          initial={editing}
+          onSave={(g) => {
+            updateGoal(editing.id, g);
+            setEditing(null);
+            push({ title: 'Meta atualizada', description: g.title, tone: 'success' });
+          }}
+        />
+      )}
     </>
   );
 }
@@ -158,17 +183,21 @@ function NewGoalModal({
   onClose,
   onSave,
   subjects,
+  initial,
 }: {
   open: boolean;
   onClose: () => void;
   onSave: (g: Omit<Goal, 'id' | 'userId' | 'archived'>) => void;
   subjects: { id: string; name: string }[];
+  /** Presente = modo edição. */
+  initial?: Goal;
 }) {
-  const [title, setTitle] = useState('');
-  const [metric, setMetric] = useState<GoalMetric>('studyHours');
-  const [target, setTarget] = useState(15);
-  const [period, setPeriod] = useState<GoalPeriod>('weekly');
-  const [subjectId, setSubjectId] = useState('');
+  const isEdit = !!initial;
+  const [title, setTitle] = useState(initial?.title ?? '');
+  const [metric, setMetric] = useState<GoalMetric>(initial?.metric ?? 'studyHours');
+  const [target, setTarget] = useState(initial?.target ?? 15);
+  const [period, setPeriod] = useState<GoalPeriod>(initial?.period ?? 'weekly');
+  const [subjectId, setSubjectId] = useState(initial?.subjectId ?? '');
 
   const week = weekRange(todayISO());
 
@@ -177,7 +206,7 @@ function NewGoalModal({
       open={open}
       onClose={onClose}
       size="sm"
-      title="Nova meta"
+      title={isEdit ? `Editar ${initial?.title}` : 'Nova meta'}
       description="Metas curtas funcionam melhor: prefira uma semana com número realista."
       footer={
         <>
@@ -192,12 +221,12 @@ function NewGoalModal({
                 target,
                 period,
                 subjectId: subjectId || null,
-                startDate: period === 'weekly' ? week[0] : todayISO(),
-                endDate: period === 'weekly' ? week[6] : addDaysISO(todayISO(), 30),
+                startDate: initial?.startDate ?? (period === 'weekly' ? week[0] : todayISO()),
+                endDate: initial?.endDate ?? (period === 'weekly' ? week[6] : addDaysISO(todayISO(), 30)),
               })
             }
           >
-            Criar meta
+            {isEdit ? 'Salvar' : 'Criar meta'}
           </Button>
         </>
       }

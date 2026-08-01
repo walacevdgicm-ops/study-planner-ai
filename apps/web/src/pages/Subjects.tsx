@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Archive, Pencil, Plus, Star } from 'lucide-react';
-import type { SubjectColor } from '@spa/shared-types';
+import { Archive, Pencil, Plus, Star, Trash2 } from 'lucide-react';
+import type { ClassSlot, SubjectColor, Weekday } from '@spa/shared-types';
 import {
   Badge,
   Button,
@@ -22,7 +22,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { useAppStore } from '@/store/useAppStore';
 import { usePriorities, useSubjectMap } from '@/store/selectors';
 import { SUBJECT_COLORS, subjectHex } from '@/lib/subject-colors';
-import { fmtHours, fmtMinutes, relativeDays, WEEKDAY_LABEL } from '@/lib/date';
+import { fmtHours, fmtMinutes, parseTimeInput, relativeDays, WEEKDAY_LABEL } from '@/lib/date';
 import { PRIORITY_LABEL } from '@/features/engine/priority';
 
 export default function Subjects() {
@@ -258,8 +258,11 @@ interface NewSubjectData {
   credits: number;
   weight: 1 | 2 | 3 | 4 | 5;
   currentGrade: number | null;
-  classSlots: [];
+  classSlots: ClassSlot[];
 }
+
+let slotKeySeq = 0;
+const nextSlotKey = () => `slot_${++slotKeySeq}`;
 
 function NewSubjectModal({
   open,
@@ -281,6 +284,7 @@ function NewSubjectModal({
     totalHours: number;
     weight: number;
     currentGrade: number | null;
+    classSlots: ClassSlot[];
   };
 }) {
   const professors = useAppStore((s) => s.professors);
@@ -294,7 +298,19 @@ function NewSubjectModal({
   const [totalHours, setTotalHours] = useState(initial?.totalHours ?? 60);
   const [weight, setWeight] = useState(initial?.weight ?? 3);
   const [currentGrade, setCurrentGrade] = useState(initial?.currentGrade?.toString() ?? '');
+  const [classSlots, setClassSlots] = useState<(ClassSlot & { key: string })[]>(
+    () => initial?.classSlots.map((c) => ({ ...c, key: nextSlotKey() })) ?? [],
+  );
   const [error, setError] = useState('');
+
+  const addSlot = () =>
+    setClassSlots((slots) => [
+      ...slots,
+      { key: nextSlotKey(), weekday: 1 as Weekday, start: 480, end: 600, room: '' },
+    ]);
+  const removeSlot = (key: string) => setClassSlots((slots) => slots.filter((s) => s.key !== key));
+  const patchSlot = (key: string, patch: Partial<ClassSlot>) =>
+    setClassSlots((slots) => slots.map((s) => (s.key === key ? { ...s, ...patch } : s)));
 
   const submit = () => {
     if (name.trim().length < 3) {
@@ -311,11 +327,12 @@ function NewSubjectModal({
       credits: Math.max(1, Math.round(totalHours / 15)),
       weight: weight as 1 | 2 | 3 | 4 | 5,
       currentGrade: grade !== null && Number.isFinite(grade) ? grade : null,
-      classSlots: [],
+      classSlots: classSlots.map(({ key: _key, ...slot }) => slot),
     });
     if (!isEdit) {
       setName('');
       setCode('');
+      setClassSlots([]);
     }
     setError('');
   };
@@ -325,7 +342,7 @@ function NewSubjectModal({
       open={open}
       onClose={onClose}
       title={isEdit ? `Editar ${initial?.name}` : 'Nova disciplina'}
-      description="O horário de aula pode ser ajustado depois, na tela da disciplina."
+      description="Cadastre o horário de aula para o sistema detectar choques com o plano de estudo."
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -409,6 +426,65 @@ function NewSubjectModal({
                 style={{ background: c.hex }}
               />
             ))}
+          </div>
+        </Field>
+
+        <Field
+          label="Horário de aula"
+          hint="É esse horário que o sistema usa para detectar choque com o plano de estudo."
+        >
+          <div className="space-y-2">
+            {classSlots.map((slot) => (
+              <div key={slot.key} className="flex flex-wrap items-center gap-1.5 rounded-lg border border-hair p-2">
+                <Select
+                  aria-label="Dia da semana"
+                  value={slot.weekday}
+                  onChange={(e) => patchSlot(slot.key, { weekday: Number(e.target.value) as Weekday })}
+                  className="w-[5.5rem]"
+                >
+                  {WEEKDAY_LABEL.map((label, i) => (
+                    <option key={label} value={i}>
+                      {label}
+                    </option>
+                  ))}
+                </Select>
+                <Input
+                  type="time"
+                  aria-label="Início"
+                  value={fmtMinutes(slot.start)}
+                  onChange={(e) => patchSlot(slot.key, { start: parseTimeInput(e.target.value) })}
+                  className="w-[6.5rem]"
+                />
+                <span className="text-ink-3" aria-hidden>
+                  –
+                </span>
+                <Input
+                  type="time"
+                  aria-label="Fim"
+                  value={fmtMinutes(slot.end)}
+                  onChange={(e) => patchSlot(slot.key, { end: parseTimeInput(e.target.value) })}
+                  className="w-[6.5rem]"
+                />
+                <Input
+                  aria-label="Sala"
+                  placeholder="Sala"
+                  value={slot.room ?? ''}
+                  onChange={(e) => patchSlot(slot.key, { room: e.target.value })}
+                  className="min-w-[5rem] flex-1"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Remover este horário"
+                  onClick={() => removeSlot(slot.key)}
+                >
+                  <Trash2 size={14} />
+                </Button>
+              </div>
+            ))}
+            <Button variant="secondary" size="sm" onClick={addSlot}>
+              <Plus size={14} /> Adicionar horário
+            </Button>
           </div>
         </Field>
       </div>

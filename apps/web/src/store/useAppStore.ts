@@ -20,6 +20,7 @@ import type {
 import { buildSeed, type AppData } from '@/data/seed';
 import { addDaysISO, todayISO, weekRange } from '@/lib/date';
 import { uid } from '@/lib/id';
+import { validateImport } from '@/lib/import-schema';
 import { createFirstReview, gradeReview, DEFAULT_INTERVALS } from '@/features/engine/spaced-repetition';
 import { computeAllPriorities } from '@/features/engine/priority';
 import { generateWeekPlan, redistributeMissed } from '@/features/engine/planner';
@@ -54,6 +55,7 @@ interface Actions {
   /* trabalhos */
   addAssignment: (a: Omit<Assignment, 'id' | 'createdAt' | 'subtasks' | 'attachments' | 'favorite'>) => void;
   updateAssignment: (id: ID, patch: Partial<Assignment>) => void;
+  deleteAssignment: (id: ID) => void;
   moveAssignment: (id: ID, status: AssignmentStatus) => void;
   toggleSubtask: (assignmentId: ID, subtaskId: ID) => void;
   addSubtask: (assignmentId: ID, title: string) => void;
@@ -61,10 +63,12 @@ interface Actions {
   /* provas */
   addExam: (e: Omit<Exam, 'id'>) => void;
   updateExam: (id: ID, patch: Partial<Exam>) => void;
+  deleteExam: (id: ID) => void;
 
   /* materiais */
   addMaterial: (m: Omit<Material, 'id' | 'addedAt' | 'favorite' | 'progress' | 'studiedAt'>) => void;
   updateMaterial: (id: ID, patch: Partial<Material>) => void;
+  deleteMaterial: (id: ID) => void;
   toggleMaterialFavorite: (id: ID) => void;
   markMaterialStudied: (id: ID) => string;
   queueFlashcards: (materialId: ID) => number;
@@ -94,7 +98,7 @@ interface Actions {
 
   /* dados */
   exportData: () => string;
-  importData: (json: string) => boolean;
+  importData: (json: string) => { ok: boolean; errors: string[] };
   resetData: () => void;
   startFresh: () => void;
 }
@@ -160,6 +164,13 @@ export const useAppStore = create<AppState>()(
       updateAssignment: (id, patch) =>
         set((s) => ({ assignments: s.assignments.map((x) => (x.id === id ? { ...x, ...patch } : x)) })),
 
+      deleteAssignment: (id) =>
+        set((s) => ({
+          assignments: s.assignments.filter((x) => x.id !== id),
+          // preserva o histórico de estudo — só desvincula o trabalho apagado
+          sessions: s.sessions.map((x) => (x.assignmentId === id ? { ...x, assignmentId: null } : x)),
+        })),
+
       moveAssignment: (id, status) => {
         const before = get().assignments.find((a) => a.id === id);
         set((s) => ({ assignments: s.assignments.map((x) => (x.id === id ? { ...x, status } : x)) }));
@@ -191,6 +202,20 @@ export const useAppStore = create<AppState>()(
       updateExam: (id, patch) =>
         set((s) => ({ exams: s.exams.map((x) => (x.id === id ? { ...x, ...patch } : x)) })),
 
+      deleteExam: (id) =>
+        set((s) => {
+          const orphanReviewIds = new Set(
+            s.reviews.filter((r) => r.sourceType === 'exam' && r.sourceId === id).map((r) => r.id),
+          );
+          return {
+            exams: s.exams.filter((x) => x.id !== id),
+            reviews: s.reviews.filter((r) => !orphanReviewIds.has(r.id)),
+            sessions: s.sessions.map((x) =>
+              x.reviewId && orphanReviewIds.has(x.reviewId) ? { ...x, reviewId: null } : x,
+            ),
+          };
+        }),
+
       /* ---------------- materiais ---------------- */
       addMaterial: (m) =>
         set((s) => ({
@@ -212,6 +237,23 @@ export const useAppStore = create<AppState>()(
 
       updateMaterial: (id, patch) =>
         set((s) => ({ materials: s.materials.map((x) => (x.id === id ? { ...x, ...patch } : x)) })),
+
+      deleteMaterial: (id) =>
+        set((s) => {
+          const orphanReviewIds = new Set(
+            s.reviews.filter((r) => r.sourceType === 'material' && r.sourceId === id).map((r) => r.id),
+          );
+          return {
+            materials: s.materials.filter((x) => x.id !== id),
+            reviews: s.reviews.filter((r) => !orphanReviewIds.has(r.id)),
+            sessions: s.sessions.map((x) => {
+              const next = { ...x };
+              if (next.materialId === id) next.materialId = null;
+              if (next.reviewId && orphanReviewIds.has(next.reviewId)) next.reviewId = null;
+              return next;
+            }),
+          };
+        }),
 
       toggleMaterialFavorite: (id) =>
         set((s) => ({
@@ -320,7 +362,9 @@ export const useAppStore = create<AppState>()(
         const s = get();
         const today = todayISO();
         const missed = s.sessions.filter((x) => x.status === 'missed' && x.date < today);
-        const horizon = [...weekRange(today), ...weekRange(todayISO()).map((dt) => dt)].filter(
+        // Semana atual + a seguinte — sem a próxima, atrasos de sexta não achavam
+        // espaço e caíam em `unplaced` mesmo havendo dias livres à frente.
+        const horizon = [...weekRange(today), ...weekRange(addDaysISO(today, 7))].filter(
           (dt, i, arr) => arr.indexOf(dt) === i && dt >= today,
         );
         const { moved, unplaced } = redistributeMissed(
@@ -416,15 +460,27 @@ export const useAppStore = create<AppState>()(
       },
 
       importData: (json) => {
-        try {
-          const parsed = JSON.parse(json);
-          const data: AppData = parsed.data ?? parsed;
-          if (!data.subjects || !data.user) return false;
-          set({ ...data });
-          return true;
-        } catch {
-          return false;
-        }
+        const result = validateImport(json);
+        if (!result.ok || !result.data) return { ok: false, errors: result.errors };
+        // Atribuição explícita por campo — nunca `set({ ...data })`: um JSON
+        // com uma chave igual a uma ação (ex. "addSession") substituiria a
+        // função no store por um valor arbitrário do arquivo importado.
+        const data = result.data;
+        set({
+          user: data.user,
+          semesters: data.semesters,
+          professors: data.professors,
+          subjects: data.subjects,
+          assignments: data.assignments,
+          exams: data.exams,
+          materials: data.materials,
+          sessions: data.sessions,
+          reviews: data.reviews,
+          goals: data.goals,
+          notifications: data.notifications,
+          gamification: data.gamification,
+        });
+        return { ok: true, errors: [] };
       },
 
       resetData: () => set({ ...buildSeed(), onboarded: true }),

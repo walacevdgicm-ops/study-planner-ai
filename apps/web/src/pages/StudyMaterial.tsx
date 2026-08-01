@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Document, Page, pdfjs } from 'react-pdf';
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import { ChevronLeft, ChevronRight, Download, FileQuestion, Play } from 'lucide-react';
+import { ChevronLeft, Download, FileQuestion, Play } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -14,15 +12,14 @@ import {
   Progress,
   useToast,
 } from '@spa/ui-kit';
-import type { StudySession } from '@spa/shared-types';
+import type { PdfHighlight, StudySession } from '@spa/shared-types';
 import { PageHeader } from '@/components/PageHeader';
 import { PomodoroTimer } from '@/features/pomodoro/PomodoroTimer';
+import { PdfMaterialViewer } from '@/features/pdf-reader/PdfMaterialViewer';
 import { useAppStore } from '@/store/useAppStore';
 import { useSubjectMap } from '@/store/selectors';
 import { materialFileUrl, fetchMaterialText } from '@/lib/api/materials';
 import { fmtMinutes, todayISO } from '@/lib/date';
-
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 export default function StudyMaterial() {
   const { id = '' } = useParams();
@@ -156,57 +153,23 @@ export default function StudyMaterial() {
                 }
               />
             ) : isPdf ? (
-              <div className="flex flex-col items-center bg-surface-2/60 p-4">
-                <Document
-                  file={materialFileUrl(file.id)}
-                  onLoadSuccess={({ numPages: n }) => setNumPages(n)}
-                  loading={<p className="py-16 text-[13px] text-ink-2">Carregando PDF…</p>}
-                  error={<p className="py-16 text-[13px] text-caneta">Não consegui abrir este PDF.</p>}
-                  className="max-w-full"
-                >
-                  <Page
-                    pageNumber={pageNum}
-                    width={640}
-                    renderTextLayer={false}
-                    renderAnnotationLayer={false}
-                    className="shadow-paper"
-                  />
-                </Document>
-
-                <div className="mt-3 flex items-center gap-3">
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    aria-label="Página anterior"
-                    disabled={pageNum <= 1}
-                    onClick={() => {
-                      const p = pageNum - 1;
-                      setPageNum(p);
-                      savePdfPosition(p);
-                    }}
-                  >
-                    <ChevronLeft size={16} />
-                  </Button>
-                  <span className="font-mono text-[13px] tabular-nums text-ink-2">
-                    {pageNum} / {numPages || material.size || '—'}
-                  </span>
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    aria-label="Próxima página"
-                    disabled={numPages > 0 && pageNum >= numPages}
-                    onClick={() => {
-                      const p = pageNum + 1;
-                      setPageNum(p);
-                      savePdfPosition(p);
-                    }}
-                  >
-                    <ChevronRight size={16} />
-                  </Button>
-                </div>
+              <div className="flex flex-col items-center">
+                <PdfMaterialViewer
+                  fileId={file.id}
+                  title={material.title}
+                  pageNum={pageNum}
+                  numPages={numPages}
+                  onPageChange={(p) => {
+                    setPageNum(p);
+                    savePdfPosition(p);
+                  }}
+                  onNumPagesChange={setNumPages}
+                  highlights={material.highlights ?? []}
+                  onHighlightsChange={(next: PdfHighlight[]) => updateMaterial(material.id, { highlights: next })}
+                />
 
                 {extractedText && (
-                  <div className="mt-4 w-full max-w-2xl">
+                  <div className="mb-4 w-full max-w-2xl px-4">
                     <button
                       onClick={() => setShowText((v) => !v)}
                       className="text-[12.5px] font-medium text-accent underline underline-offset-2"

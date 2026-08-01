@@ -176,6 +176,22 @@ export interface MaterialFile {
   uploadedAt: ISODateTime;
 }
 
+/**
+ * Marcação de marca-texto sobre uma página de PDF. Posição em percentual
+ * relativo à página renderizada (0–1), para continuar correta em qualquer
+ * nível de zoom ou tamanho de tela.
+ */
+export interface PdfHighlight {
+  id: ID;
+  page: number;
+  xPct: number;
+  yPct: number;
+  widthPct: number;
+  heightPct: number;
+  color: string;
+  createdAt: ISODateTime;
+}
+
 export interface Material {
   id: ID;
   subjectId: ID;
@@ -196,6 +212,8 @@ export interface Material {
   studiedAt?: ISODateTime | null;
   /** Arquivo enviado de verdade (PDF/vídeo/outro). Ausente nos materiais só-metadado. */
   file?: MaterialFile | null;
+  /** Marca-texto sobre as páginas do PDF (só faz sentido para kind: 'pdf'). */
+  highlights?: PdfHighlight[];
   /** Saída do assistente de IA (stub na Etapa 2). */
   aiSummary?: AiSummary | null;
   aiFlashcards?: Flashcard[];

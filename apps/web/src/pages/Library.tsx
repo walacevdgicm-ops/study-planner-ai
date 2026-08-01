@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookMarked, Check, FileText, Paperclip, Plus, Sparkles, Star, Upload, Video } from 'lucide-react';
+import { BookMarked, Check, FileText, Paperclip, Pencil, Plus, Sparkles, Star, Trash2, Upload, Video } from 'lucide-react';
 import type { Material, MaterialFile, MaterialKind } from '@spa/shared-types';
 import {
   Badge,
@@ -64,6 +64,8 @@ export default function Library({ kind }: { kind: MaterialKind }) {
   const loading = useSimulatedLoad(450);
   const materials = useAppStore((s) => s.materials);
   const addMaterial = useAppStore((s) => s.addMaterial);
+  const updateMaterial = useAppStore((s) => s.updateMaterial);
+  const deleteMaterial = useAppStore((s) => s.deleteMaterial);
   const toggleFavorite = useAppStore((s) => s.toggleMaterialFavorite);
   const markStudied = useAppStore((s) => s.markMaterialStudied);
   const subjects = useActiveSubjects();
@@ -74,6 +76,7 @@ export default function Library({ kind }: { kind: MaterialKind }) {
   const [subjectFilter, setSubjectFilter] = useState('all');
   const [aiTarget, setAiTarget] = useState<Material | null>(null);
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<Material | null>(null);
 
   const copy = COPY[kind];
   const Icon = copy.icon;
@@ -154,14 +157,35 @@ export default function Library({ kind }: { kind: MaterialKind }) {
                 <CardBody className="flex flex-1 flex-col p-4 pl-5">
                   <div className="flex items-start justify-between gap-2">
                     <SubjectChip subjectId={m.subjectId} />
-                    <button
-                      onClick={() => toggleFavorite(m.id)}
-                      aria-label={m.favorite ? 'Remover dos favoritos' : 'Favoritar'}
-                      aria-pressed={m.favorite}
-                      className={cn('rounded p-1', m.favorite ? 'text-marca' : 'text-ink-3 hover:text-ink')}
-                    >
-                      <Star size={15} fill={m.favorite ? 'currentColor' : 'none'} />
-                    </button>
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      <button
+                        onClick={() => toggleFavorite(m.id)}
+                        aria-label={m.favorite ? 'Remover dos favoritos' : 'Favoritar'}
+                        aria-pressed={m.favorite}
+                        className={cn('rounded p-1', m.favorite ? 'text-marca' : 'text-ink-3 hover:text-ink')}
+                      >
+                        <Star size={15} fill={m.favorite ? 'currentColor' : 'none'} />
+                      </button>
+                      <button
+                        onClick={() => setEditing(m)}
+                        aria-label={`Editar ${m.title}`}
+                        className="rounded p-1 text-ink-3 hover:text-ink"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Excluir "${m.title}"? As revisões geradas a partir dele também somem.`)) {
+                            deleteMaterial(m.id);
+                            push({ title: 'Material excluído', description: m.title });
+                          }
+                        }}
+                        aria-label={`Excluir ${m.title}`}
+                        className="rounded p-1 text-ink-3 hover:text-caneta"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
 
                   <h3 className="mt-1.5 text-[14px] leading-5 font-semibold text-ink">{m.title}</h3>
@@ -240,6 +264,23 @@ export default function Library({ kind }: { kind: MaterialKind }) {
           push({ title: 'Material adicionado', description: data.title, tone: 'success' });
         }}
       />
+
+      {editing && (
+        <NewMaterialModal
+          open={!!editing}
+          kind={kind}
+          unit={copy.unit}
+          accept={copy.accept}
+          onClose={() => setEditing(null)}
+          subjects={subjects.map((s) => ({ id: s.id, name: s.name }))}
+          initial={editing}
+          onSave={(data) => {
+            updateMaterial(editing.id, data);
+            setEditing(null);
+            push({ title: 'Material atualizado', description: data.title, tone: 'success' });
+          }}
+        />
+      )}
     </>
   );
 }
@@ -263,6 +304,7 @@ function NewMaterialModal({
   onClose,
   onSave,
   subjects,
+  initial,
 }: {
   open: boolean;
   kind: MaterialKind;
@@ -271,12 +313,17 @@ function NewMaterialModal({
   onClose: () => void;
   onSave: (data: NewMaterialData) => void;
   subjects: { id: string; name: string }[];
+  /** Presente = modo edição. */
+  initial?: Material;
 }) {
-  const [title, setTitle] = useState('');
-  const [subjectId, setSubjectId] = useState(subjects[0]?.id ?? '');
-  const [tags, setTags] = useState('');
-  const [size, setSize] = useState(30);
+  const isEdit = !!initial;
+  const [title, setTitle] = useState(initial?.title ?? '');
+  const [subjectId, setSubjectId] = useState(initial?.subjectId ?? subjects[0]?.id ?? '');
+  const [tags, setTags] = useState(initial?.tags.join(', ') ?? '');
+  const [size, setSize] = useState(initial?.size ?? 30);
   const [uploaded, setUploaded] = useState<UploadedFile | null>(null);
+  // Arquivo já anexado (modo edição) — só é substituído se o aluno escolher um novo.
+  const [existingFile] = useState<MaterialFile | null>(initial?.file ?? null);
   const [fileName, setFileName] = useState('');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
@@ -322,7 +369,7 @@ function NewMaterialModal({
       title: title.trim(),
       tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
       size,
-      position: 0,
+      position: initial?.position ?? 0,
       file: uploaded
         ? {
             id: uploaded.id,
@@ -332,25 +379,31 @@ function NewMaterialModal({
             hasText: uploaded.hasText,
             uploadedAt: new Date().toISOString(),
           }
-        : null,
+        : existingFile,
     });
-    reset();
+    if (!isEdit) reset();
   };
+
+  const kindLabel = kind === 'video' ? 'vídeo-aula' : kind === 'reading' ? 'leitura' : 'material';
 
   return (
     <Modal
       open={open}
       onClose={onClose}
       size="sm"
-      title={kind === 'video' ? 'Nova vídeo-aula' : kind === 'reading' ? 'Nova leitura' : 'Novo material'}
-      description="Anexe o arquivo de verdade para poder estudá-lo dentro da plataforma."
+      title={isEdit ? `Editar ${initial?.title}` : kind === 'video' ? 'Nova vídeo-aula' : kind === 'reading' ? 'Nova leitura' : 'Novo material'}
+      description={
+        isEdit
+          ? `Escolha um novo arquivo só se quiser substituir o desta ${kindLabel}.`
+          : 'Anexe o arquivo de verdade para poder estudá-lo dentro da plataforma.'
+      }
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
             Cancelar
           </Button>
           <Button onClick={submit} disabled={uploading}>
-            Adicionar
+            {isEdit ? 'Salvar' : 'Adicionar'}
           </Button>
         </>
       }
@@ -370,7 +423,7 @@ function NewMaterialModal({
             disabled={uploading}
             className={cn(
               'flex w-full items-center gap-2.5 rounded-lg border border-dashed px-3 py-2.5 text-left text-[13px] transition-colors',
-              uploaded ? 'border-quadro/50 bg-quadro/8 text-ink' : 'border-hair text-ink-2 hover:bg-surface-2',
+              uploaded || existingFile ? 'border-quadro/50 bg-quadro/8 text-ink' : 'border-hair text-ink-2 hover:bg-surface-2',
             )}
           >
             {uploading ? (
@@ -385,6 +438,12 @@ function NewMaterialModal({
                 <span className="shrink-0 font-mono text-[11px] text-ink-3">
                   {(uploaded.sizeBytes / 1024).toFixed(0)}KB
                 </span>
+              </>
+            ) : existingFile ? (
+              <>
+                <Check size={16} className="shrink-0 text-quadro" />
+                <span className="min-w-0 flex-1 truncate">{existingFile.name}</span>
+                <span className="shrink-0 text-[11px] text-ink-3">trocar</span>
               </>
             ) : (
               <>

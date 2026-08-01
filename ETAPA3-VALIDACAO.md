@@ -57,10 +57,11 @@ Total: 34 achados — 12 Alta, 15 Média, 7 Baixa.
 
 ## 3. Segurança
 
-### 3.1 `importData` aceita qualquer JSON sem validação — **Alta**
+### 3.1 `importData` aceita qualquer JSON sem validação — **Alta** — ✅ Corrigido
 - **Problema.** `importData` faz `JSON.parse` e, checando apenas se existem `data.subjects` e `data.user`, aplica `set({ ...data })` no store.
 - **Impacto.** Um arquivo malicioso (ou só corrompido) injeta estado arbitrário. Como o estado alimenta `href` de links e é persistido, isso vai de app quebrado a vetor de XSS assim que qualquer campo for renderizado sem escape ou usado em navegação.
 - **Solução.** Validar com Zod contra o schema de `shared-types` antes de aplicar, rejeitar campos desconhecidos (`.strict()`), e mostrar ao usuário o que será sobrescrito. **Esta é a correção mais barata de alta severidade da lista.**
+- **Aplicado em:** `apps/web/src/lib/import-schema.ts` (schema Zod `.strict()` espelhando `AppData`) + `importData` em `useAppStore.ts`, que agora atribui campo a campo em vez de `set({ ...data })` — fecha também a brecha de uma chave injetada sobrescrever uma ação do store. Não implementado: o aviso prévio "isto vai sobrescrever X" antes de aplicar (ficou para a correção de 4.4, que trata confirmação/desfazer de forma unificada).
 
 ### 3.2 Dados acadêmicos em claro no navegador — **Alta**
 - **Problema.** Notas, materiais e desempenho ficam em `localStorage`, legíveis por qualquer script da origem e por qualquer pessoa com acesso ao perfil do navegador.
@@ -91,15 +92,17 @@ Total: 34 achados — 12 Alta, 15 Média, 7 Baixa.
 - **Impacto.** O produto promete "o sistema decide quando e se ajusta sozinho", mas deixa o aluno criar um plano inválido e só reclama depois.
 - **Solução.** Validar no `onDragOver`: destacar a coluna em vermelho quando não couber e, ao soltar, encaixar no primeiro intervalo livre do dia (`freeIntervals` já devolve isso), avisando no toast qual horário foi escolhido.
 
-### 4.2 Não dá para editar nem excluir quase nada — **Alta**
+### 4.2 Não dá para editar nem excluir quase nada — **Alta** — ✅ Corrigido
 - **Problema.** Existem telas de criação para disciplina, trabalho, prova, material e meta, mas nenhuma de edição ou exclusão — embora `updateSubject`, `updateExam` e `deleteSession` já existam no store.
 - **Impacto.** Um erro de digitação na carga horária contamina o cálculo de prioridade pelo semestre inteiro, sem saída.
 - **Solução.** Um `<EntityFormModal>` reaproveitável em modo criar/editar, mais exclusão com confirmação e desfazer. É a maior lacuna funcional do que foi entregue.
+- **Aplicado em:** editar/excluir agora existem nas 5 telas (Disciplinas já tinha editar — ganhou também o horário de aula, ver 4.3; Trabalhos, Provas, Metas e Materiais ganharam ambos). Adicionadas `deleteAssignment`, `deleteExam`, `deleteMaterial` em `useAppStore.ts`, com limpeza em cascata de revisões e sessões órfãs. Optei por reaproveitar os modais `New*` existentes com um prop `initial` (modo criar/editar) em vez de um `<EntityFormModal>` genérico novo — ganho equivalente, risco menor de regressão nesta etapa. Exclusão usa `confirm()` nativo, mesmo padrão já usado em "Arquivar" — o diálogo próprio + desfazer da 4.4 continua pendente.
 
-### 4.3 Cadastro de disciplina não coleta horário de aula — **Alta**
+### 4.3 Cadastro de disciplina não coleta horário de aula — **Alta** — ✅ Corrigido
 - **Problema.** `NewSubjectModal` cria a disciplina com `classSlots: []`.
 - **Impacto.** A detecção de choque com aula — uma das inteligências centrais da Etapa 1 — nunca dispara para disciplinas criadas pelo usuário. A regra existe e fica inerte.
 - **Solução.** Incluir um editor de horários no cadastro (dia + início + fim + sala, repetível), com atalho "copiar do horário anterior".
+- **Aplicado em:** `Subjects.tsx` — editor de horários (dia/início/fim/sala, múltiplas linhas) no modal de criar/editar. Também corrigido um defeito descoberto ao implementar: o modo edição salvava `classSlots: []` fixo, ou seja, **editar uma disciplina apagava o horário dela**. Não implementado: o atalho "copiar do horário anterior".
 
 ### 4.4 Nenhuma ação é reversível — **Média**
 - **Problema.** "Gerar plano" descarta todos os blocos automáticos planejados da semana; "Redefinir" apaga tudo atrás de um `confirm()` nativo.
@@ -111,10 +114,11 @@ Total: 34 achados — 12 Alta, 15 Média, 7 Baixa.
 - **Impacto.** O usuário real não distingue o que é dele e o que é demonstração.
 - **Solução.** Sinalizar visualmente o modo demonstração e oferecer "limpar dados de exemplo" em um banner persistente até o primeiro cadastro próprio.
 
-### 4.6 A redistribuição de atrasos só enxerga a semana corrente — **Alta** (defeito concreto)
+### 4.6 A redistribuição de atrasos só enxerga a semana corrente — **Alta** (defeito concreto) — ✅ Corrigido
 - **Problema.** Em `redistributeLate`, o horizonte é montado como `[...weekRange(today), ...weekRange(todayISO())]` — a **mesma semana duplicada**, deduplicada logo em seguida. A intenção era semana atual + próxima.
 - **Impacto.** Atrasos acumulados numa sexta-feira não encontram espaço e caem em `unplaced`; o usuário recebe "não couberam" quando havia espaço na semana seguinte.
 - **Solução.** `[...weekRange(today), ...weekRange(addDaysISO(today, 7))]` e teste unitário cobrindo o caso de virada de semana.
+- **Aplicado em:** `useAppStore.ts` — corrigida a linha exatamente como sugerido. O teste unitário fica pendente (depende de 7.3, que ainda não foi atacado — o projeto não tem Vitest configurado).
 
 ---
 
@@ -207,10 +211,11 @@ Total: 34 achados — 12 Alta, 15 Média, 7 Baixa.
 
 ## 8. Acessibilidade
 
-### 8.1 O texto terciário não atinge contraste AA — **Alta**
+### 8.1 O texto terciário não atinge contraste AA — **Alta** — ✅ Corrigido
 - **Problema.** O token `--ink-3` (`#7B869C`) rende **3,7:1** sobre o papel claro e **4,4:1** sobre a superfície escura — abaixo do mínimo de 4,5:1 do WCAG AA. E ele é usado justamente em legendas de 11–12 px (metadados, contadores, datas).
 - **Impacto.** Boa parte das informações secundárias do produto é difícil de ler — inclusive para quem não tem deficiência, em telas ruins ou sob luz forte.
 - **Solução.** Escurecer para algo como `#5C6880` no claro e clarear para `#98A3B8` no escuro, e nunca usar `ink-3` abaixo de 12 px. Correção de duas linhas no `theme.css`, com efeito em todas as telas.
+- **Aplicado em:** `theme.css` — exatamente os valores sugeridos. A regra "nunca abaixo de 12px" não foi auditada tela a tela; vale uma verificação futura com um linter de contraste.
 
 ### 8.2 O drag-and-drop por teclado não se anuncia — **Alta**
 - **Problema.** O `KeyboardSensor` está configurado, mas sem `screenReaderInstructions` nem `announcements` do dnd-kit.
@@ -270,7 +275,7 @@ Total: 34 achados — 12 Alta, 15 Média, 7 Baixa.
 **Entregue na Etapa 2:** front-end completo e navegável com as 17 telas, design system próprio ("Marca-texto & Fichário") em `packages/ui-kit`, motor de regras determinístico funcionando (priorização, geração e redistribuição de plano, conflitos, sobrecarga, revisão espaçada 1-3-7-15-30-60), **streak e XP** visíveis no dashboard e no perfil, metas como desafios com barra de ritmo, estatísticas com comparação entre semanas, e o **assistente de IA como stub funcional** — tela, fluxo, loading, erro e envio de flashcards para a fila de revisão, tudo pronto para receber a API.
 
 **Falta para chamar de 1.0 de produção** (ordem sugerida):
-1. Correções de prioridade Alta desta análise — com destaque para contraste AA (8.1), validação do import (3.1), edição/exclusão de entidades (4.2), horário de aula no cadastro (4.3) e o defeito da redistribuição (4.6).
+1. ~~Correções de prioridade Alta desta análise — com destaque para contraste AA (8.1), validação do import (3.1), edição/exclusão de entidades (4.2), horário de aula no cadastro (4.3) e o defeito da redistribuição (4.6).~~ ✅ Esses 5 já foram corrigidos (ver marcações acima). Restam da lista de Alta: 1.1, 1.2, 2.1, 2.2, 3.2, 6.1–6.3, 7.3, 7.4, 8.2.
 2. Fundação de qualidade: ESLint + Prettier + CI + testes do motor de regras (7.3, 7.4).
 3. Extração de `packages/domain-engine` e criação da camada de serviços (1.1, 1.2).
 4. Back-end NestJS + Prisma + PostgreSQL com o modelo já corrigido (6.1–6.5), autenticação e uploads em S3/R2.
