@@ -104,10 +104,13 @@ export function AiAssistantModal({ material, onClose }: { material: Material | n
           items={[
             { id: 'summary', label: 'Resumo' },
             { id: 'flashcards', label: 'Flashcards' },
-            { id: 'quiz', label: 'Quiz' },
+            { id: 'quiz', label: 'Quiz / Simulado' },
           ]}
         />
         <Badge tone="warning">stub — sem chamada de API</Badge>
+        {live?.file?.hasText && (
+          <Badge tone="accent">gerado a partir do texto do PDF</Badge>
+        )}
       </div>
 
       <p className="mb-4 rounded-lg border border-hair bg-surface-2/60 px-3 py-2 text-[12px] text-ink-2">
@@ -176,42 +179,68 @@ export function AiAssistantModal({ material, onClose }: { material: Material | n
           ))}
         </div>
       ) : mode === 'quiz' && live?.aiQuiz?.length ? (
-        <ol className="space-y-4">
-          {live.aiQuiz.map((q, qi) => (
-            <li key={q.id}>
-              <p className="text-[13.5px] font-medium text-ink">
-                {qi + 1}. {q.question}
-              </p>
-              <div className="mt-2 space-y-1.5">
-                {q.options.map((opt, oi) => {
-                  const chosen = answers[q.id];
-                  const isChosen = chosen === oi;
-                  const revealed = chosen !== undefined;
-                  const correct = oi === q.correctIndex;
-                  return (
-                    <button
-                      key={oi}
-                      onClick={() => setAnswers((a) => ({ ...a, [q.id]: oi }))}
-                      className={[
-                        'block w-full rounded-lg border px-3 py-2 text-left text-[13px] transition-colors',
-                        revealed && correct
-                          ? 'border-quadro bg-quadro/10 text-ink'
-                          : revealed && isChosen
-                            ? 'border-caneta bg-caneta/10 text-ink'
-                            : 'border-hair text-ink-2 hover:bg-surface-2',
-                      ].join(' ')}
-                    >
-                      {opt}
-                    </button>
-                  );
-                })}
+        <div className="space-y-4">
+          {(() => {
+            const total = live.aiQuiz.length;
+            const answered = live.aiQuiz.filter((q) => answers[q.id] !== undefined).length;
+            if (answered < total) {
+              return (
+                <p className="text-[12.5px] text-ink-3">
+                  {answered} de {total} respondidas
+                </p>
+              );
+            }
+            const correct = live.aiQuiz.filter((q) => answers[q.id] === q.correctIndex).length;
+            const pct = Math.round((correct / total) * 100);
+            return (
+              <div className="flex items-center justify-between rounded-lg border border-hair bg-surface-2/60 px-3 py-2.5">
+                <p className="text-[13.5px] font-semibold text-ink">
+                  Resultado do simulado: <span className="font-mono tabular-nums">{correct}</span>/{total} (
+                  <span className="font-mono tabular-nums">{pct}%</span>)
+                </p>
+                <Button variant="ghost" size="sm" onClick={() => setAnswers({})}>
+                  Refazer
+                </Button>
               </div>
-              {answers[q.id] !== undefined && (
-                <p className="mt-1.5 text-[12.5px] text-ink-3">{q.rationale}</p>
-              )}
-            </li>
-          ))}
-        </ol>
+            );
+          })()}
+          <ol className="space-y-4">
+            {live.aiQuiz.map((q, qi) => (
+              <li key={q.id}>
+                <p className="text-[13.5px] font-medium text-ink">
+                  {qi + 1}. {q.question}
+                </p>
+                <div className="mt-2 space-y-1.5">
+                  {q.options.map((opt, oi) => {
+                    const chosen = answers[q.id];
+                    const isChosen = chosen === oi;
+                    const revealed = chosen !== undefined;
+                    const correct = oi === q.correctIndex;
+                    return (
+                      <button
+                        key={oi}
+                        onClick={() => setAnswers((a) => ({ ...a, [q.id]: oi }))}
+                        className={[
+                          'block w-full rounded-lg border px-3 py-2 text-left text-[13px] transition-colors',
+                          revealed && correct
+                            ? 'border-quadro bg-quadro/10 text-ink'
+                            : revealed && isChosen
+                              ? 'border-caneta bg-caneta/10 text-ink'
+                              : 'border-hair text-ink-2 hover:bg-surface-2',
+                        ].join(' ')}
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+                {answers[q.id] !== undefined && (
+                  <p className="mt-1.5 text-[12.5px] text-ink-3">{q.rationale}</p>
+                )}
+              </li>
+            ))}
+          </ol>
+        </div>
       ) : null}
     </Modal>
   );

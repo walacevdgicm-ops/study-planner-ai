@@ -16,12 +16,11 @@
   },
   "dependencies": {
     "@netlify/blobs": "^8.2.0",
-    "pdf-parse": "^1.1.1"
+    "pdfjs-dist": "^4.8.69"
   },
   "devDependencies": {
     "@netlify/functions": "^3.1.2",
     "@types/node": "^22.10.7",
-    "@types/pdf-parse": "^1.1.5",
     "netlify-cli": "^19.1.5",
     "typescript": "^5.7.3"
   }

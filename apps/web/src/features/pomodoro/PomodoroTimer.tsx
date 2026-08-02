@@ -22,24 +22,37 @@ export function PomodoroTimer({ session, onClose }: PomodoroTimerProps) {
   const [remaining, setRemaining] = useState(prefs.sessionMinutes * 60);
   const [running, setRunning] = useState(false);
   const [cycles, setCycles] = useState(0);
-  const tick = useRef<number | null>(null);
+  // Instante (relógio real) em que a fase atual deve terminar. O tempo restante
+  // é sempre recalculado a partir daqui, nunca decrementado por tique — assim
+  // não atrasa quando a aba fica em segundo plano (o navegador limita
+  // `setInterval` a ~1 disparo/min ali, mas o relógio continua correto).
+  const endAtRef = useRef<number | null>(null);
 
   const total = (phase === 'focus' ? prefs.sessionMinutes : prefs.breakMinutes) * 60;
   const subject = session ? subjectMap.get(session.subjectId) : undefined;
 
   useEffect(() => {
     if (!session) return;
+    const secs = prefs.sessionMinutes * 60;
     setPhase('focus');
-    setRemaining(prefs.sessionMinutes * 60);
-    setRunning(true);
+    setRemaining(secs);
     setCycles(0);
+    endAtRef.current = Date.now() + secs * 1000;
+    setRunning(true);
   }, [session, prefs.sessionMinutes]);
 
   useEffect(() => {
     if (!running) return;
-    tick.current = window.setInterval(() => setRemaining((r) => r - 1), 1000);
+    const recompute = () => {
+      if (endAtRef.current == null) return;
+      setRemaining(Math.max(0, Math.round((endAtRef.current - Date.now()) / 1000)));
+    };
+    recompute();
+    const id = window.setInterval(recompute, 1000);
+    document.addEventListener('visibilitychange', recompute);
     return () => {
-      if (tick.current) window.clearInterval(tick.current);
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', recompute);
     };
   }, [running]);
 
@@ -105,7 +118,18 @@ export function PomodoroTimer({ session, onClose }: PomodoroTimerProps) {
         </Ring>
 
         <div className="flex items-center gap-2">
-          <Button variant="secondary" size="icon" onClick={() => setRunning((r) => !r)} aria-label={running ? 'Pausar' : 'Retomar'}>
+          <Button
+            variant="secondary"
+            size="icon"
+            onClick={() => {
+              // Ao retomar, recalcula o instante de término a partir do tempo
+              // restante atual — sem isso o próximo tique herdaria o
+              // `endAtRef` antigo e o timer pularia à frente.
+              if (!running) endAtRef.current = Date.now() + remaining * 1000;
+              setRunning((r) => !r);
+            }}
+            aria-label={running ? 'Pausar' : 'Retomar'}
+          >
             {running ? <Pause size={16} /> : <Play size={16} />}
           </Button>
           <Button
@@ -115,6 +139,7 @@ export function PomodoroTimer({ session, onClose }: PomodoroTimerProps) {
             onClick={() => {
               setRemaining(total);
               setRunning(false);
+              endAtRef.current = null;
             }}
           >
             <RotateCcw size={16} />

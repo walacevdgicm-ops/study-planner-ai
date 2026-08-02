@@ -65,18 +65,17 @@ export default async (req, _context) => {
 
   if (mimeType === 'application/pdf') {
     try {
-      // Import tardio: evita carregar a lib em requisições que não são PDF.
-      const pdfParse = (await import('pdf-parse')).default;
-      const result = await pdfParse(Buffer.from(arrayBuffer));
-      const text = (result.text ?? '').slice(0, 200_000); // teto de segurança para o blob de texto
-      numPages = result.numpages ?? null;
+      const extracted = await extractPdfText(arrayBuffer);
+      numPages = extracted.numPages;
+      const text = extracted.text.slice(0, 200_000); // teto de segurança para o blob de texto
       if (text.trim()) {
         const textStore = getStore('materials-text');
         await textStore.set(id, text);
         hasText = true;
       }
-    } catch {
+    } catch (err) {
       // PDF protegido, corrompido ou só imagem escaneada: segue sem texto.
+      console.error('Falha ao extrair texto do PDF', err);
       hasText = false;
     }
   }
@@ -90,6 +89,40 @@ export default async (req, _context) => {
     numPages,
   });
 };
+
+/**
+ * Extrai o texto de um PDF com `pdfjs-dist` (build "legacy", sem DOM).
+ *
+ * Não usa `pdf-parse`: a lib empacota uma versão travada e antiga do pdf.js
+ * (v1.10.100, de ~2018) que, carregada via `import()` dentro de uma função
+ * `.mjs`, falha de forma determinística com "bad XRef entry" em PDFs
+ * perfeitamente válidos — reproduzido também com `require`/`createRequire`
+ * a partir de um processo iniciado como ESM. Ou seja: `hasText` nunca dava
+ * `true` de verdade, e o assistente de IA nunca tinha texto real para usar.
+ * `pdfjs-dist` já é dependência do projeto (o `react-pdf` do front-end usa a
+ * mesma lib) e funciona normalmente neste contexto.
+ */
+async function extractPdfText(arrayBuffer) {
+  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const doc = await pdfjsLib.getDocument({
+    data: new Uint8Array(arrayBuffer),
+    useWorkerFetch: false,
+    isEvalSupported: false,
+    disableFontFace: true,
+  }).promise;
+
+  const numPages = doc.numPages;
+  const pagesToRead = Math.min(numPages, 60); // teto de segurança para tempo/memória da function
+  let text = '';
+  for (let i = 1; i <= pagesToRead; i++) {
+    const page = await doc.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map((item) => ('str' in item ? item.str : '')).join(' ') + '\n\n';
+  }
+  await doc.destroy();
+
+  return { text, numPages };
+}
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {

@@ -30,6 +30,8 @@ export interface PdfPageStageProps {
   color: string;
   onHighlightsChange: (next: PdfHighlight[]) => void;
   onLoadSuccess?: (numPages: number) => void;
+  /** Dimensões reais da página (em pt), para calcular a proporção e ajustar o zoom à tela. */
+  onPageLoad?: (size: { width: number; height: number }) => void;
   className?: string;
 }
 
@@ -48,6 +50,7 @@ export function PdfPageStage({
   color,
   onHighlightsChange,
   onLoadSuccess,
+  onPageLoad,
   className,
 }: PdfPageStageProps) {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -142,6 +145,12 @@ export function PdfPageStage({
           width={width}
           renderTextLayer={false}
           renderAnnotationLayer={false}
+          onLoadSuccess={(page) =>
+            onPageLoad?.({
+              width: (page as unknown as { originalWidth: number }).originalWidth,
+              height: (page as unknown as { originalHeight: number }).originalHeight,
+            })
+          }
           className="pointer-events-none shadow-paper"
         />
       </Document>

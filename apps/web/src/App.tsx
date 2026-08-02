@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { SkeletonLines } from '@spa/ui-kit';
 import { AppShell } from '@/components/layout/AppShell';
@@ -44,6 +44,19 @@ function RouteFallback() {
 
 export default function App() {
   const onboarded = useAppStore((s) => s.onboarded);
+  const reconcileMissedSessions = useAppStore((s) => s.reconcileMissedSessions);
+
+  // Nada transiciona `planned` -> `missed` sozinho (é um front-end sem worker
+  // rodando em segundo plano). Roda ao abrir o app e sempre que a aba volta
+  // a ficar visível, para pegar o caso de o app ficar aberto durante a virada do dia.
+  useEffect(() => {
+    reconcileMissedSessions();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') reconcileMissedSessions();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [reconcileMissedSessions]);
 
   return (
     <>

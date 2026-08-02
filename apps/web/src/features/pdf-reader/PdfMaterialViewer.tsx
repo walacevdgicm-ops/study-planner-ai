@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Highlighter,
+  Maximize2,
   Trash2,
   X,
   ZoomIn,
@@ -15,11 +16,41 @@ import type { PdfHighlight } from '@spa/shared-types';
 import { SUBJECT_COLORS } from '@/lib/subject-colors';
 import { PdfPageStage } from './PdfPageStage';
 
-const ZOOM_MIN = 0.6;
-const ZOOM_MAX = 2.2;
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.2;
 const BASE_WIDTH_INLINE = 640;
-const BASE_WIDTH_READER = 780;
+/** Proporção padrão de carta/A4 (largura/altura) até sabermos a real, pelo primeiro carregamento da página. */
+const DEFAULT_PAGE_ASPECT = 612 / 792;
+
+/**
+ * Largura "de encaixe": cabe inteira na altura disponível do container,
+ * sem passar da largura disponível. Recalcula ao redimensionar a janela.
+ */
+function useFitWidth(ref: React.RefObject<HTMLElement | null>, aspect: number, active: boolean) {
+  const [fit, setFit] = useState(640);
+
+  useEffect(() => {
+    if (!active) return;
+    const el = ref.current;
+    if (!el) return;
+
+    const update = () => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (!w || !h) return;
+      const byHeight = h * aspect;
+      setFit(Math.max(260, Math.min(w - 8, byHeight)));
+    };
+
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref, aspect, active]);
+
+  return fit;
+}
 
 export interface PdfMaterialViewerProps {
   fileId: string;
@@ -47,9 +78,15 @@ export function PdfMaterialViewer({
   const [color, setColor] = useState<string>(SUBJECT_COLORS[0].hex);
   const [isReading, setIsReading] = useState(false);
   const [turnDir, setTurnDir] = useState<1 | -1>(1);
+  /** largura/altura real da página, descoberta no primeiro carregamento. */
+  const [pageAspect, setPageAspect] = useState(DEFAULT_PAGE_ASPECT);
+
+  const readerBodyRef = useRef<HTMLDivElement>(null);
+  const fitWidth = useFitWidth(readerBodyRef, pageAspect, isReading);
 
   const zoomIn = () => setZoom((z) => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)));
   const zoomOut = () => setZoom((z) => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)));
+  const zoomReset = () => setZoom(1);
 
   const canPrev = pageNum > 1;
   const canNext = numPages > 0 ? pageNum < numPages : true;
@@ -68,6 +105,10 @@ export function PdfMaterialViewer({
   const pageHighlightCount = highlights.filter((h) => h.page === pageNum).length;
   const clearPageHighlights = () => onHighlightsChange(highlights.filter((h) => h.page !== pageNum));
 
+  const handlePageLoad = ({ width, height }: { width: number; height: number }) => {
+    if (width > 0 && height > 0) setPageAspect(width / height);
+  };
+
   useEffect(() => {
     if (!isReading) return;
     document.body.style.overflow = 'hidden';
@@ -83,6 +124,11 @@ export function PdfMaterialViewer({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReading, pageNum, numPages]);
+
+  // Zoom reseta ao entrar no modo leitura — a largura de encaixe já é o "100%" ideal.
+  useEffect(() => {
+    if (isReading) setZoom(1);
+  }, [isReading]);
 
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -101,6 +147,11 @@ export function PdfMaterialViewer({
         <Button variant="ghost" size="icon" aria-label="Aumentar zoom" onClick={zoomIn} disabled={zoom >= ZOOM_MAX}>
           <ZoomIn size={15} />
         </Button>
+        {zoom !== 1 && (
+          <Button variant="ghost" size="icon" aria-label="Ajustar à tela" title="Ajustar à tela" onClick={zoomReset}>
+            <Maximize2 size={14} />
+          </Button>
+        )}
       </div>
 
       <Button
@@ -154,7 +205,7 @@ export function PdfMaterialViewer({
     <div className="flex items-center gap-3">
       <Button
         variant="secondary"
-        size={size === 'lg' ? 'icon' : 'icon'}
+        size="icon"
         className={size === 'lg' ? 'size-11' : undefined}
         aria-label="Página anterior"
         disabled={!canPrev}
@@ -167,7 +218,7 @@ export function PdfMaterialViewer({
       </span>
       <Button
         variant="secondary"
-        size={size === 'lg' ? 'icon' : 'icon'}
+        size="icon"
         className={size === 'lg' ? 'size-11' : undefined}
         aria-label="Próxima página"
         disabled={!canNext}
@@ -182,17 +233,25 @@ export function PdfMaterialViewer({
     <div className="flex w-full flex-col items-center gap-3 bg-surface-2/60 p-4">
       {toolbar('inline')}
 
-      <PdfPageStage
-        fileId={fileId}
-        pageNum={pageNum}
-        width={BASE_WIDTH_INLINE * zoom}
-        highlights={highlights}
-        toolActive={toolActive}
-        color={color}
-        onHighlightsChange={onHighlightsChange}
-        onLoadSuccess={onNumPagesChange}
-        className="max-w-full overflow-auto"
-      />
+      {/* Viewport com altura própria e overflow-auto — o Card ancestral tem
+          overflow-hidden, então sem isso o zoom simplesmente cortava a página
+          em vez de deixar rolar até o resto. `mx-auto` (não `items-center`
+          num flex) centraliza sem o bug clássico de clipar conteúdo que
+          estoura um container flex/grid alinhado ao centro. */}
+      <div className="max-h-[75vh] w-full overflow-auto rounded-lg">
+        <PdfPageStage
+          fileId={fileId}
+          pageNum={pageNum}
+          width={BASE_WIDTH_INLINE * zoom}
+          highlights={highlights}
+          toolActive={toolActive}
+          color={color}
+          onHighlightsChange={onHighlightsChange}
+          onLoadSuccess={onNumPagesChange}
+          onPageLoad={handlePageLoad}
+          className="mx-auto"
+        />
+      </div>
 
       {pageNav('sm')}
 
@@ -212,11 +271,11 @@ export function PdfMaterialViewer({
               </div>
             </div>
 
-            <div className="flex flex-1 items-center justify-center gap-4 overflow-auto p-4 sm:p-8">
+            <div className="flex flex-1 gap-2 overflow-hidden p-2 sm:gap-4 sm:p-6">
               <Button
                 variant="ghost"
                 size="icon"
-                className="hidden shrink-0 sm:flex"
+                className="hidden shrink-0 self-center sm:flex"
                 aria-label="Página anterior"
                 disabled={!canPrev}
                 onClick={goPrev}
@@ -224,23 +283,33 @@ export function PdfMaterialViewer({
                 <ChevronLeft size={22} />
               </Button>
 
-              <div key={pageNum} className={cn('flex justify-center', turnDir === 1 ? 'pdf-turn-next' : 'pdf-turn-prev')}>
-                <PdfPageStage
-                  fileId={fileId}
-                  pageNum={pageNum}
-                  width={BASE_WIDTH_READER * zoom}
-                  highlights={highlights}
-                  toolActive={toolActive}
-                  color={color}
-                  onHighlightsChange={onHighlightsChange}
-                  onLoadSuccess={onNumPagesChange}
-                />
+              {/* Único container que rola (nas duas direções, se preciso).
+                  Sem `items-center` no pai — é exatamente isso que cortava
+                  o topo da página e impedia rolar até ele. */}
+              <div ref={readerBodyRef} className="min-w-0 flex-1 overflow-auto">
+                <div
+                  key={pageNum}
+                  className={cn('w-fit', turnDir === 1 ? 'pdf-turn-next' : 'pdf-turn-prev')}
+                  style={{ margin: '0 auto' }}
+                >
+                  <PdfPageStage
+                    fileId={fileId}
+                    pageNum={pageNum}
+                    width={fitWidth * zoom}
+                    highlights={highlights}
+                    toolActive={toolActive}
+                    color={color}
+                    onHighlightsChange={onHighlightsChange}
+                    onLoadSuccess={onNumPagesChange}
+                    onPageLoad={handlePageLoad}
+                  />
+                </div>
               </div>
 
               <Button
                 variant="ghost"
                 size="icon"
-                className="hidden shrink-0 sm:flex"
+                className="hidden shrink-0 self-center sm:flex"
                 aria-label="Próxima página"
                 disabled={!canNext}
                 onClick={goNext}

@@ -79,6 +79,13 @@ interface Actions {
   completeSession: (id: ID, actualMinutes?: number) => void;
   updateSession: (id: ID, patch: Partial<StudySession>) => void;
   deleteSession: (id: ID) => void;
+  /**
+   * Vira `missed` toda sessão `planned` cuja data já passou. Sem isso, nada
+   * transiciona o status sozinho — "Redistribuir atrasos" nunca teria o que
+   * processar fora dos dados de demonstração. Chamado uma vez ao abrir o
+   * app (ver `App.tsx`); idempotente, seguro de rodar várias vezes.
+   */
+  reconcileMissedSessions: () => number;
   regenerateWeek: (anchor?: ISODate) => number;
   redistributeLate: () => { moved: number; unplaced: number };
 
@@ -345,6 +352,18 @@ export const useAppStore = create<AppState>()(
 
       deleteSession: (id) => set((s) => ({ sessions: s.sessions.filter((x) => x.id !== id) })),
 
+      reconcileMissedSessions: () => {
+        const today = todayISO();
+        const s = get();
+        const toFlip = s.sessions.filter((x) => x.status === 'planned' && x.date < today);
+        if (!toFlip.length) return 0;
+        const flipIds = new Set(toFlip.map((x) => x.id));
+        set((st) => ({
+          sessions: st.sessions.map((x) => (flipIds.has(x.id) ? { ...x, status: 'missed' as const } : x)),
+        }));
+        return toFlip.length;
+      },
+
       regenerateWeek: (anchor = todayISO()) => {
         const s = get();
         const dates = weekRange(anchor);
@@ -368,7 +387,7 @@ export const useAppStore = create<AppState>()(
           (dt, i, arr) => arr.indexOf(dt) === i && dt >= today,
         );
         const { moved, unplaced } = redistributeMissed(
-          missed.slice(0, 8),
+          missed,
           horizon,
           s.user.preferences,
           s.subjects,
