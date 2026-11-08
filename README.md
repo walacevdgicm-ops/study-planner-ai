@@ -1,8 +1,23 @@
-# Study Planner AI
+# 🎓 Study Planner AI
+
+![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)
+![Tailwind](https://img.shields.io/badge/Tailwind_CSS_v4-06B6D4?logo=tailwindcss&logoColor=white)
+![Netlify](https://img.shields.io/badge/Deploy-Netlify-00C7B7?logo=netlify&logoColor=white)
 
 Plataforma de organização acadêmica para estudantes universitários — disciplinas, prazos, materiais, planejamento semanal/diário, revisão espaçada, metas e estatísticas em um único painel, com um motor de regras que prioriza, redistribui e alerta automaticamente.
 
-> **Status: Etapa 2 (front-end) concluída.** A Etapa 1 (lógica e arquitetura) está em `../study-planner-ai-etapa1-arquitetura.md` e é a fonte da verdade. A Etapa 3 (validação e refinamento) ainda não foi iniciada.
+> **Status:** front-end completo, com **17 telas** e motor de regras funcionando 100% no navegador. Próxima etapa: back-end e IA real.
+
+## 🧩 Destaques
+
+- 🧠 **Motor de priorização** que decide o que estudar primeiro (prova, nota, carga e prazos)
+- 📅 **Plano semanal e diário gerados automaticamente**, com redistribuição de atrasos
+- 🔁 **Revisão espaçada** (1-3-7-15-30-60 dias)
+- ⏱️ **Pomodoro**, metas, **XP e streak** (gamificação)
+- 📄 **Leitor de PDF** de materiais e assistente de IA (resumos, flashcards e quiz)
+- 🏗️ **Monorepo** com `apps/web` + `packages/ui-kit` + `packages/shared-types`
 
 ## Como rodar
 
@@ -45,3 +60,9 @@ study-planner-ai/
 ## Dados de demonstração
 
 O app já abre com um semestre completo (6 disciplinas, provas, trabalhos, materiais, ~90 sessões de histórico). Para voltar ao estado inicial depois de mexer: **Configurações → Seus dados → Redefinir**.
+
+## 👨‍💻 Autor
+
+**Walace Soares Vidigal Junior** · [GitHub](https://github.com/walacevdgicm-ops)
+
+Licença [MIT](LICENSE)
